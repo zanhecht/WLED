@@ -535,6 +535,7 @@ void getSettingsJS(byte subPage, char* dest)
     sappend('v',SET_F("XX"),DMXSegmentSpacing);
     sappend('v',SET_F("PY"),e131Priority);
     sappend('v',SET_F("DM"),DMXMode);
+    sappend('c',SET_F("IT"),DMXIgnoreTransitions);
     sappend('v',SET_F("ET"),realtimeTimeoutMs);
     sappend('c',SET_F("FB"),arlsForceMaxBri);
     sappend('c',SET_F("RG"),arlsDisableGammaCorrection);

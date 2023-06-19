@@ -219,16 +219,15 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
           if (dataOffset > dmxChannels - dmxEffectChannels + 1)
             return;
 
-          if (e131_data[dataOffset+1] < strip.getModeCount())
-            if (e131_data[dataOffset+1] != seg.mode)      seg.setMode(   e131_data[dataOffset+1]);
-          if (e131_data[dataOffset+2]   != seg.speed)     seg.speed     = e131_data[dataOffset+2];      
-          if (e131_data[dataOffset+3]   != seg.intensity) seg.intensity = e131_data[dataOffset+3];
-          if (e131_data[dataOffset+4]   != seg.palette)   seg.setPalette(e131_data[dataOffset+4]);
+          if (DMXIgnoreTransitions) seg.mode    = e131_data[dataOffset+1]; else seg.setMode(   e131_data[dataOffset+1]);
+          if (DMXIgnoreTransitions) seg.palette = e131_data[dataOffset+4]; else seg.setPalette(e131_data[dataOffset+4]);
+          if (e131_data[dataOffset+2] != seg.speed)     seg.speed     = e131_data[dataOffset+2];      
+          if (e131_data[dataOffset+3] != seg.intensity) seg.intensity = e131_data[dataOffset+3];
 
-          uint8_t segOption = (uint8_t)floor(e131_data[dataOffset+5]/64.0);
-          if (segOption == 0 && (seg.mirror  || seg.reverse )) {seg.setOption(SEG_OPTION_MIRROR, false); seg.setOption(SEG_OPTION_REVERSED, false);}
-          if (segOption == 1 && (seg.mirror  || !seg.reverse)) {seg.setOption(SEG_OPTION_MIRROR, false); seg.setOption(SEG_OPTION_REVERSED,  true);}
-          if (segOption == 2 && (!seg.mirror || seg.reverse )) {seg.setOption(SEG_OPTION_MIRROR,  true); seg.setOption(SEG_OPTION_REVERSED, false);}
+          uint8_t segOption = (uint8_t)floor(e131_data[dataOffset+5]/64.0f);
+          if (segOption == 0 && ( seg.mirror ||  seg.reverse)) {seg.setOption(SEG_OPTION_MIRROR, false); seg.setOption(SEG_OPTION_REVERSED, false);}
+          if (segOption == 1 && ( seg.mirror || !seg.reverse)) {seg.setOption(SEG_OPTION_MIRROR, false); seg.setOption(SEG_OPTION_REVERSED,  true);}
+          if (segOption == 2 && (!seg.mirror ||  seg.reverse)) {seg.setOption(SEG_OPTION_MIRROR,  true); seg.setOption(SEG_OPTION_REVERSED, false);}
           if (segOption == 3 && (!seg.mirror || !seg.reverse)) {seg.setOption(SEG_OPTION_MIRROR,  true); seg.setOption(SEG_OPTION_REVERSED,  true);}
 
           uint32_t colors[3];
@@ -241,18 +240,15 @@ void handleE131Packet(e131_packet_t* p, IPAddress clientIP, byte protocol){
           colors[0] = RGBW32(e131_data[dataOffset+ 6], e131_data[dataOffset+ 7], e131_data[dataOffset+ 8], whites[0]);
           colors[1] = RGBW32(e131_data[dataOffset+ 9], e131_data[dataOffset+10], e131_data[dataOffset+11], whites[1]);
           colors[2] = RGBW32(e131_data[dataOffset+12], e131_data[dataOffset+13], e131_data[dataOffset+14], whites[2]);
-          if (colors[0] != seg.colors[0]) seg.setColor(0, colors[0]);
-          if (colors[1] != seg.colors[1]) seg.setColor(1, colors[1]);
-          if (colors[2] != seg.colors[2]) seg.setColor(2, colors[2]);
+          if (DMXIgnoreTransitions) seg.colors[0] = colors[0]; else seg.setColor(0, colors[0]);
+          if (DMXIgnoreTransitions) seg.colors[1] = colors[1]; else seg.setColor(1, colors[1]);
+          if (DMXIgnoreTransitions) seg.colors[2] = colors[2]; else seg.setColor(2, colors[2]);
 
           // Set segment opacity or global brightness
           if (isSegmentMode) {
-            if (e131_data[dataOffset] != seg.opacity) seg.setOpacity(e131_data[dataOffset]);
+            if (DMXIgnoreTransitions) seg.opacity = e131_data[dataOffset]; else seg.setOpacity(e131_data[dataOffset]);
           } else if ( id == strip.getSegmentsNum()-1 ) {
-            if (bri != e131_data[dataOffset]) {
-              bri = e131_data[dataOffset];
-              strip.setBrightness(bri, true);
-            }
+            strip.setBrightness(e131_data[dataOffset], true);
           }
         }
         return;

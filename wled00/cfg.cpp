@@ -415,6 +415,7 @@ bool deserializeConfig(JsonObject doc, bool fromFS) {
   CJSON(e131Priority, if_live_dmx[F("e131prio")]);
   if (e131Priority > 200) e131Priority = 200;
   CJSON(DMXMode, if_live_dmx["mode"]);
+  CJSON(DMXIgnoreTransitions, if_live_dmx[F("tran")]);
 
   tdd = if_live[F("timeout")] | -1;
   if (tdd >= 0) realtimeTimeoutMs = tdd * 100;
@@ -865,6 +866,7 @@ void serializeConfig() {
   if_live_dmx[F("addr")] = DMXAddress;
   if_live_dmx[F("dss")] = DMXSegmentSpacing;
   if_live_dmx["mode"] = DMXMode;
+  if_live_dmx[F("tran")] = DMXIgnoreTransitions;
 
   if_live[F("timeout")] = realtimeTimeoutMs / 100;
   if_live[F("maxbri")] = arlsForceMaxBri;

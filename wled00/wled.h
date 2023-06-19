@@ -410,6 +410,7 @@ WLED_GLOBAL uint16_t DMXSegmentSpacing _INIT(0);                  // Number of v
 WLED_GLOBAL byte e131LastSequenceNumber[E131_MAX_UNIVERSE_COUNT]; // to detect packet loss
 WLED_GLOBAL bool e131Multicast _INIT(false);                      // multicast or unicast
 WLED_GLOBAL bool e131SkipOutOfSequence _INIT(false);              // freeze instead of flickering
+WLED_GLOBAL bool DMXIgnoreTransitions _INIT(false);               // should Effect mode use WLED transitions
 WLED_GLOBAL uint16_t pollReplyCount _INIT(0);                     // count number of replies for ArtPoll node report
 
 // mqtt
