@@ -28,7 +28,7 @@
       let w = (c.width * skip) / (leds.length - start);
       for (let i = start; i < leds.length; i += skip) {
         ctx.fillStyle = fill(leds,i);
-        ctx.fillRect(Math.round((i - start) * w / skip), 0, Math.ceil(w), c.height);
+        ctx.fillRect((i - start) * w / skip, 0, Math.ceil(w) + 1, c.height);
       }
     }
     function update() { // via HTTP (/json/live)
