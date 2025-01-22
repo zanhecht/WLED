@@ -21,8 +21,7 @@ jobs:
     - name: Get default environments
       id: envs
       run: |
-        mods=`find usermods/ -name library.json | xargs dirname | xargs -n 1 basename | jq -R | jq --slurp -c`
-        echo "usermods=$mods >> $GITHUB_OUTPUT
+        echo "usermods=$(find usermods/ -name library.json | xargs dirname | xargs -n 1 basename | jq -R | jq --slurp -c)" >> $GITHUB_OUTPUT
     outputs:
       usermods: ${{ steps.envs.outputs.usermods }}
 
