@@ -1,5 +1,3 @@
-#pragma once
-
 #include "wled.h"
 
 /* This driver reads quaternion data from the MPU6060 and adds it to the JSON
@@ -105,7 +103,7 @@ class MPU6050Driver : public Usermod {
     VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
     VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
     VectorFloat gravity;    // [x, y, z]            gravity vector
-    uint32 sample_count;
+    uint32_t sample_count;
 
     // Usermod output
     um_data_t um_data;

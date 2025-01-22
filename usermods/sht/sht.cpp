@@ -1,10 +1,9 @@
-#ifndef WLED_ENABLE_MQTT
+#include "wled.h"
+#include "SHT85.h"
+
+#ifdef WLED_DISABLE_MQTT
 #error "This user mod requires MQTT to be enabled."
 #endif
-
-#pragma once
-
-#include "SHT85.h"
 
 #define USERMOD_SHT_TYPE_SHT30 0
 #define USERMOD_SHT_TYPE_SHT31 1

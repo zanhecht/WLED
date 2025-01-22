@@ -1,5 +1,3 @@
-#pragma once
-
 #include "wled.h"
 #include <INA226_WE.h>
 
@@ -208,12 +206,6 @@ private:
             _lastLoopCheck = currentTime;
             fetchAndPushValues();
         }
-    }
-
-    ~UsermodINA226()
-    {
-        delete _ina226;
-        _ina226 = nullptr;
     }
 
 #ifndef WLED_DISABLE_MQTT
@@ -551,6 +543,13 @@ public:
         _initDone = true;
         return configComplete;
     }
+
+    ~UsermodINA226()
+    {
+        delete _ina226;
+        _ina226 = nullptr;
+    }
+
 };
 
 const char UsermodINA226::_name[] PROGMEM = "INA226";

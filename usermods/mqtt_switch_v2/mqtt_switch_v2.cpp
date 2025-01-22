@@ -1,9 +1,7 @@
-#pragma once
-
 #warning "This usermod is deprecated and no longer maintained. It will be removed in a future WLED release. Please use usermod multi_relay which has more features."
 
 #include "wled.h"
-#ifndef WLED_ENABLE_MQTT
+#ifdef WLED_DISABLE_MQTT
 #error "This user mod requires MQTT to be enabled."
 #endif
 
@@ -159,5 +157,5 @@ inline void UsermodMqttSwitch::updateState(uint8_t pinNr)
 }
 
 
-static UsermodMqttSwitc mqtt_switch_v2;
+static UsermodMqttSwitch mqtt_switch_v2;
 REGISTER_USERMOD(mqtt_switch_v2);

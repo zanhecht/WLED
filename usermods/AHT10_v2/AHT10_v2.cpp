@@ -1,5 +1,3 @@
-#pragma once
-
 #include "wled.h"
 #include <AHT10.h>
 
@@ -52,12 +50,6 @@ private:
     _lastStatus = 0;
     _lastHumidity = 0;
     _lastTemperature = 0;
-  }
-
-  ~UsermodAHT10()
-  {
-    delete _aht;
-    _aht = nullptr;
   }
 
 #ifndef WLED_DISABLE_MQTT
@@ -321,6 +313,12 @@ public:
 
     _initDone = true;
     return configComplete;
+  }
+
+  ~UsermodAHT10()
+  {
+    delete _aht;
+    _aht = nullptr;
   }
 };
 

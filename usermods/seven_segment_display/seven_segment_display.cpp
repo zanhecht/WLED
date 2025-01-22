@@ -1,10 +1,8 @@
-#ifndef WLED_ENABLE_MQTT
+#include "wled.h"
+
+#ifdef WLED_DISABLE_MQTT
 #error "This user mod requires MQTT to be enabled."
 #endif
-
-#pragma once
-
-#include "wled.h"
 
 class SevenSegmentDisplay : public Usermod
 {
