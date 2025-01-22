@@ -22,7 +22,7 @@ jobs:
       id: envs
       run: |
         mods=`find usermods/ -name library.json | xargs dirname | xargs -n 1 basename | jq -R | jq --slurp -c`
-        echo -n "usermods=\"$mods\"" >> $GITHUB_OUTPUT
+        echo "usermods=$mods >> $GITHUB_OUTPUT
     outputs:
       usermods: ${{ steps.envs.outputs.usermods }}
 
