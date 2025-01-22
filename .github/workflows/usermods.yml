@@ -8,7 +8,7 @@ on:
 jobs:
 
   get_usermod_envs:
-    name: Gather Environments
+    name: Gather Usermods
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
     - name: Get default environments
       id: envs
       run: |
-        mods=`find usermods/ -name library.json | xargs dirname | xargs -n 1 basename | xargs echo`
+        mods=`find usermods/ -name library.json | xargs dirname | xargs -n 1 basename | jq -R | jq --slurp -c`
         echo -n "usermods=\"$mods\"" >> $GITHUB_OUTPUT
     outputs:
       usermods: ${{ steps.envs.outputs.usermods }}
@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [usermod]
-        usermod: ${{ needs.get_usermod_envs.outputs.usermods }}
+        usermod: ${{ fromJSON(needs.get_usermod_envs.outputs.usermods) }}
     steps:
     - uses: actions/checkout@v4
     - name: Set up Node.js
