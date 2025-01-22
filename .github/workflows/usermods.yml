@@ -33,8 +33,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [usermod_esp32]
         usermod: ${{ fromJSON(needs.get_usermod_envs.outputs.usermods) }}
+        environment: [usermod_esp32]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Node.js
