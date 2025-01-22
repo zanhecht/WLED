@@ -2,8 +2,8 @@ name: Usermod CI
 
 on:
   push:
-#    paths:
-#      - usermods/**
+    paths:
+      - usermods/**
     
 jobs:
 
