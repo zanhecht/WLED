@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - usermods/**
+      - .github/workflows/usermods.yml
     
 jobs:
 
