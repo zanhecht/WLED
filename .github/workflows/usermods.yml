@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [usermods]
+        environment: [usermod_esp32]
         usermod: ${{ fromJSON(needs.get_usermod_envs.outputs.usermods) }}
     steps:
     - uses: actions/checkout@v4
