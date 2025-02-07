@@ -1,4 +1,0 @@
-{
-  "name:": "PWM_fan",
-  "build": { "libArchive": false }
-}
