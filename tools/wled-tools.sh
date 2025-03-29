@@ -53,7 +53,6 @@ Usage: wled-tools.sh [OPTIONS] COMMAND [ARGS...]
 
 Options:
   -h, --help              Show this help message and exit.
-  -v, --verbose           Enable verbose output for debugging.
   -t, --target <IP/Host>  Specify a single WLED device by IP address or hostname.
   -D, --discover          Discover multiple WLED devices using mDNS.
   -d, --directory <Path>  Specify a directory for saving backups (default: working directory).
