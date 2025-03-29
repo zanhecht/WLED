@@ -1,21 +1,11 @@
 #!/bin/bash
 
-# =====================
-# wled-toolbox.sh - A script for managing WLED devices
-# =====================
-
 # Color Definitions
 GREEN="\e[32m"
 RED="\e[31m"
 BLUE="\e[34m"
 YELLOW="\e[33m"
 RESET="\e[0m"
-
-# Path to backup directory
-backup_dir="./"
-
-# Firmware file (if provided)
-firmware_file=""
 
 # Logging function
 log() {
@@ -85,26 +75,29 @@ discover_devices() {
         exit 1
     fi
 
-    mapfile -t hostnames < <(avahi-browse _wled._tcp --terminate -r -p | awk -F';' '/^=/ {print $7}')
-    if [ "$quiet" = true ]; then
-        for hostname in "${hostnames[@]}"; do
-            echo "$hostname"
-        done
-    else
-        printf "%s\n" "${hostnames[@]}" | sort -u
-    fi
+    mapfile -t raw_devices < <(avahi-browse _wled._tcp --terminate -r -p | awk -F';' '/^=/ {print $7, $8, $9}')
+
+    local devices_array=()
+    for device in "${raw_devices[@]}"; do
+        read -r hostname address port <<< "$device"
+        devices_array+=("$hostname" "$address" "$port")
+    done
+
+    echo "${devices_array[@]}"
 }
 
 # Backup one device
 backup_one() {
     local hostname="$1"
+    local address="$2"
+    local port="$3"
 
-    log "INFO" "$YELLOW" "Backing up device config/presets: $hostname"
+    log "INFO" "$YELLOW" "Backing up device config/presets: $hostname ($address:$port)"
 
     mkdir -p "$backup_dir"
 
-    local cfg_url="http://$hostname/cfg.json"
-    local presets_url="http://$hostname/presets.json"
+    local cfg_url="http://$address:$port/cfg.json"
+    local presets_url="http://$address:$port/presets.json"
     local cfg_dest="${backup_dir}/${hostname}.cfg.json"
     local presets_dest="${backup_dir}/${hostname}.presets.json"
 
@@ -122,16 +115,13 @@ backup_one() {
 # Update one device
 update_one() {
     local hostname="$1"
-    local firmware="$2"
+    local address="$2"
+    local port="$3"
+    local firmware="$4"
 
-    log "INFO" "$YELLOW" "Starting firmware update for device: $hostname"
+    log "INFO" "$YELLOW" "Starting firmware update for device: $hostname ($address:$port)"
 
-    if [ -z "$firmware" ]; then
-        log "ERROR" "$RED" "Firmware file not specified."
-        exit 1
-    fi
-
-    local url="http://$hostname/update"
+    local url="http://$address:$port/update"
     local curl_command="curl -s -X POST -F "file=@$firmware" "$url""
 
     curl_handler "$curl_command" "$hostname"
@@ -142,6 +132,8 @@ command=""
 target=""
 discover=false
 quiet=false
+backup_dir="./"
+firmware_file=""
 
 if [ $# -eq 0 ]; then
     show_help
@@ -153,10 +145,6 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             show_help
             exit 0
-            ;;
-        -v|--verbose)
-            verbose=true
-            shift
             ;;
         -t|--target)
             target="$2"
@@ -193,14 +181,30 @@ done
 # Execute the appropriate command
 case "$command" in
     discover)
-        discover_devices
+        read -ra devices <<< "$(discover_devices)"
+        for ((i=0; i<${#devices[@]}; i+=3)); do
+            hostname="${devices[$i]}"
+            address="${devices[$i+1]}"
+            port="${devices[$i+2]}"
+
+            if [ "$quiet" = true ]; then
+                echo "$hostname"
+            else
+                log "INFO" "$BLUE" "Discovered device: Hostname=$hostname, Address=$address, Port=$port"
+            fi
+        done
         ;;
     backup)
         if [ -n "$target" ]; then
-            backup_one "$target"
+            # Assume target is both the hostname and address, with port 80
+            backup_one "$target" "$target" "80"
         elif [ "$discover" = true ]; then
-            for hostname in $(discover_devices); do
-                backup_one "$hostname"
+            read -ra devices <<< "$(discover_devices)"
+            for ((i=0; i<${#devices[@]}; i+=3)); do
+                hostname="${devices[$i]}"
+                address="${devices[$i+1]}"
+                port="${devices[$i+2]}"
+                backup_one "$hostname" "$address" "$port"
             done
         else
             log "ERROR" "$RED" "No target specified. Use --target or --discover."
@@ -208,11 +212,22 @@ case "$command" in
         fi
         ;;
     update)
+        # Validate firmware before proceeding
+        if [ -z "$firmware_file" ] || [ ! -f "$firmware_file" ]; then
+            log "ERROR" "$RED" "Please provide a file in --firmware that exists"
+            exit 1
+        fi
+        
         if [ -n "$target" ]; then
-            update_one "$target" "$firmware_file"
+            # Assume target is both the hostname and address, with port 80
+            update_one "$target" "$target" "80" "$firmware_file"
         elif [ "$discover" = true ]; then
-            for hostname in $(discover_devices); do
-                update_one "$hostname" "$firmware_file"
+            read -ra devices <<< "$(discover_devices)"
+            for ((i=0; i<${#devices[@]}; i+=3)); do
+                hostname="${devices[$i]}"
+                address="${devices[$i+1]}"
+                port="${devices[$i+2]}"
+                update_one "$hostname" "$address" "$port" "$firmware_file"
             done
         else
             log "ERROR" "$RED" "No target specified. Use --target or --discover."
