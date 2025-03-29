@@ -59,7 +59,7 @@ curl_handler() {
 # Print help message
 show_help() {
     cat << EOF
-Usage: wled-toolbox.sh [OPTIONS] COMMAND [ARGS...]
+Usage: wled-tools.sh [OPTIONS] COMMAND [ARGS...]
 
 Options:
   -h, --help              Show this help message and exit.
