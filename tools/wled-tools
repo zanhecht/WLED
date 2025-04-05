@@ -104,11 +104,22 @@ backup_one() {
     local curl_command_cfg="curl -s "$cfg_url" -o "$cfg_dest.tmp""
     local curl_command_presets="curl -s "$presets_url" -o "$presets_dest.tmp""
 
-    curl_handler "$curl_command_cfg" "$hostname"
-    curl_handler "$curl_command_presets" "$hostname"
+    if ! curl_handler "$curl_command_cfg" "$hostname"; then  
+        log "ERROR" "$RED" "Failed to backup configuration for $hostname"  
+        rm -f "$cfg_dest.tmp"  
+        return 1  
+    fi  
+    
+    if ! curl_handler "$curl_command_presets" "$hostname"; then  
+        log "ERROR" "$RED" "Failed to backup presets for $hostname"  
+        rm -f "$presets_dest.tmp"  
+        return 1  
+    fi 
 
     mv "$cfg_dest.tmp" "$cfg_dest"
     mv "$presets_dest.tmp" "$presets_dest"
+    log "INFO" "$GREEN" "Successfully backed up config and presets for $hostname"
+    return 0
 }
 
 # Update one device
@@ -146,6 +157,10 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -t|--target)
+            if [ -z "$2" ] || [[ "$2" == -* ]]; then
+                log "ERROR" "$RED" "The --target option requires an argument."
+                exit 1
+            fi
             target="$2"
             shift 2
             ;;
@@ -154,10 +169,18 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -d|--directory)
+            if [ -z "$2" ] || [[ "$2" == -* ]]; then
+                log "ERROR" "$RED" "The --directory option requires an argument."
+                exit 1
+            fi
             backup_dir="$2"
             shift 2
             ;;
         -f|--firmware)
+            if [ -z "$2" ] || [[ "$2" == -* ]]; then
+                log "ERROR" "$RED" "The --firmware option requires an argument."
+                exit 1
+            fi
             firmware_file="$2"
             shift 2
             ;;
@@ -174,7 +197,6 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
     esac
-
 done
 
 # Execute the appropriate command
