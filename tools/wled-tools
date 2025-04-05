@@ -135,7 +135,13 @@ update_one() {
     local url="http://$address:$port/update"
     local curl_command="curl -s -X POST -F "file=@$firmware" "$url""
 
-    curl_handler "$curl_command" "$hostname"
+    if ! curl_handler "$curl_command" "$hostname"; then
+        log "ERROR" "$RED" "Failed to update firmware for $hostname"
+        return 1
+    fi
+    
+    log "INFO" "$GREEN" "Successfully initiated firmware update for $hostname"
+    return 0
 }
 
 # Command-line arguments processing
