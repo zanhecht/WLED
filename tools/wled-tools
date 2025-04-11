@@ -87,7 +87,7 @@ EOF
 # Discover devices using mDNS
 discover_devices() {  
     if ! command -v avahi-browse &> /dev/null; then  
-        log "ERROR" "$RED" "'avahi-browse' is required but not installed."  
+        log "ERROR" "$RED" "'avahi-browse' is required but not installed, please install avahi-utils using your preferred package manager."
         exit 1  
     fi  
 
