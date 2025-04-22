@@ -172,6 +172,8 @@ inline uint32_t color_blend16(uint32_t c1, uint32_t c2, uint16_t b) { return col
 [[gnu::hot, gnu::pure]] uint32_t ColorFromPaletteWLED(const CRGBPalette16 &pal, unsigned index, uint8_t brightness = (uint8_t)255U, TBlendType blendType = LINEARBLEND);
 CRGBPalette16 generateHarmonicRandomPalette(const CRGBPalette16 &basepalette);
 CRGBPalette16 generateRandomPalette();
+void loadCustomPalettes();
+#define getPaletteCount() (13 + GRADIENT_PALETTE_COUNT + customPalettes.size())
 inline uint32_t colorFromRgbw(byte* rgbw) { return uint32_t((byte(rgbw[3]) << 24) | (byte(rgbw[0]) << 16) | (byte(rgbw[1]) << 8) | (byte(rgbw[2]))); }
 void hsv2rgb(const CHSV32& hsv, uint32_t& rgb);
 void colorHStoRGB(uint16_t hue, byte sat, byte* rgb);
@@ -490,11 +492,11 @@ void userLoop();
 #define inoise8 perlin8   // fastled legacy alias
 #define inoise16 perlin16 // fastled legacy alias
 #define hex2int(a) (((a)>='0' && (a)<='9') ? (a)-'0' : ((a)>='A' && (a)<='F') ? (a)-'A'+10 : ((a)>='a' && (a)<='f') ? (a)-'a'+10 : 0)
-[[gnu::pure]] int getNumVal(const String* req, uint16_t pos);
-void parseNumber(const char* str, byte* val, byte minv=0, byte maxv=255);
-bool getVal(JsonVariant elem, byte* val, byte vmin=0, byte vmax=255); // getVal supports inc/decrementing and random ("X~Y(r|[w]~[-][Z])" form)
+[[gnu::pure]] int getNumVal(const String &req, uint16_t pos);
+void parseNumber(const char* str, byte &val, byte minv=0, byte maxv=255);
+bool getVal(JsonVariant elem, byte &val, byte vmin=0, byte vmax=255); // getVal supports inc/decrementing and random ("X~Y(r|[w]~[-][Z])" form)
 [[gnu::pure]] bool getBoolVal(const JsonVariant &elem, bool dflt);
-bool updateVal(const char* req, const char* key, byte* val, byte minv=0, byte maxv=255);
+bool updateVal(const char* req, const char* key, byte &val, byte minv=0, byte maxv=255);
 size_t printSetFormCheckbox(Print& settingsScript, const char* key, int val);
 size_t printSetFormValue(Print& settingsScript, const char* key, int val);
 size_t printSetFormValue(Print& settingsScript, const char* key, const char* val);
@@ -543,6 +545,27 @@ inline int16_t hw_random16(int32_t lowerlimit, int32_t upperlimit) { int32_t ran
 inline uint8_t hw_random8() { return HW_RND_REGISTER; };
 inline uint8_t hw_random8(uint32_t upperlimit) { return (hw_random8() * upperlimit) >> 8; }; // input range 0-255
 inline uint8_t hw_random8(uint32_t lowerlimit, uint32_t upperlimit) { uint32_t range = upperlimit - lowerlimit; return lowerlimit + hw_random8(range); }; // input range 0-255
+
+// PSRAM allocation wrappers
+#ifndef ESP8266
+void *w_malloc(size_t);           // prefer PSRAM over DRAM
+void *w_calloc(size_t, size_t);   // prefer PSRAM over DRAM
+void *w_realloc(void *, size_t);  // prefer PSRAM over DRAM
+inline void w_free(void *ptr) { heap_caps_free(ptr); }
+void *d_malloc(size_t);           // prefer DRAM over PSRAM
+void *d_calloc(size_t, size_t);   // prefer DRAM over PSRAM
+void *d_realloc(void *, size_t);  // prefer DRAM over PSRAM
+inline void d_free(void *ptr) { heap_caps_free(ptr); }
+#else
+#define w_malloc malloc
+#define w_calloc calloc
+#define w_realloc realloc
+#define w_free free
+#define d_malloc malloc
+#define d_calloc calloc
+#define d_realloc realloc
+#define d_free free
+#endif
 
 // RAII guard class for the JSON Buffer lock
 // Modeled after std::lock_guard
