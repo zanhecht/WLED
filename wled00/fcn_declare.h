@@ -225,9 +225,8 @@ void onHueConnect(void* arg, AsyncClient* client);
 void sendHuePoll();
 void onHueData(void* arg, AsyncClient* client, void *data, size_t len);
 
-#include "FX.h" // must be below colors.cpp declarations (potentially due to duplicate declarations of e.g. color_blend)
-
 //image_loader.cpp
+class Segment;
 #ifdef WLED_ENABLE_GIF
 bool fileSeekCallback(unsigned long position);
 unsigned long filePositionCallback(void);
@@ -263,9 +262,7 @@ void handleIR();
 #include "ESPAsyncWebServer.h"
 #include "src/dependencies/json/ArduinoJson-v6.h"
 #include "src/dependencies/json/AsyncJson-v6.h"
-#include "FX.h"
 
-bool deserializeSegment(JsonObject elem, byte it, byte presetId = 0);
 bool deserializeState(JsonObject root, byte callMode = CALL_MODE_DIRECT_CHANGE, byte presetId = 0);
 void serializeSegment(const JsonObject& root, const Segment& seg, byte id, bool forPreset = false, bool segmentBounds = true);
 void serializeState(JsonObject root, bool forPreset = false, bool includeBri = true, bool segmentBounds = true, bool selectedSegmentsOnly = false);
@@ -279,8 +276,8 @@ bool serveLiveLeds(AsyncWebServerRequest* request, uint32_t wsClient = 0);
 
 //led.cpp
 void setValuesFromSegment(uint8_t s);
-void setValuesFromMainSeg();
-void setValuesFromFirstSelectedSeg();
+#define setValuesFromMainSeg()          setValuesFromSegment(strip.getMainSegmentId())
+#define setValuesFromFirstSelectedSeg() setValuesFromSegment(strip.getFirstSelectedSegId())
 void toggleOnOff();
 void applyBri();
 void applyFinalBri();

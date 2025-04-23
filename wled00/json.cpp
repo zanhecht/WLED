@@ -66,7 +66,7 @@ namespace {
   }
 }
 
-static bool deserializeSegment(JsonObject elem, byte it, byte presetId)
+static bool deserializeSegment(JsonObject elem, byte it, byte presetId = 0)
 {
   byte id = elem["id"] | it;
   if (id >= WS2812FX::getMaxSegments()) return false;
