@@ -1970,11 +1970,11 @@ void AudioReactive::removeAudioPalettes(void) {
     DEBUG_PRINTLN(palettes);
     palettes--;
   }
-  DEBUG_PRINT(F("Total # of palettes: ")); DEBUG_PRINTLN(strip.customPalettes.size());
+  DEBUG_PRINT(F("Total # of palettes: ")); DEBUG_PRINTLN(customPalettes.size());
 }
 
 void AudioReactive::createAudioPalettes(void) {
-  DEBUG_PRINT(F("Total # of palettes: ")); DEBUG_PRINTLN(strip.customPalettes.size());
+  DEBUG_PRINT(F("Total # of palettes: ")); DEBUG_PRINTLN(customPalettes.size());
   if (palettes) return;
   DEBUG_PRINTLN(F("Adding audio palettes."));
   for (int i=0; i<MAX_PALETTES; i++)

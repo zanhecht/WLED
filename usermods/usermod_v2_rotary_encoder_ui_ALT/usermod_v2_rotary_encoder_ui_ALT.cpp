@@ -396,20 +396,20 @@ void RotaryEncoderUIUsermod::sortModesAndPalettes() {
   modes_alpha_indexes = re_initIndexArray(strip.getModeCount());
   re_sortModes(modes_qstrings, modes_alpha_indexes, strip.getModeCount(), MODE_SORT_SKIP_COUNT);
 
-  DEBUG_PRINT(F("Sorting palettes: ")); DEBUG_PRINT(getPaletteCount()); DEBUG_PRINT('/'); DEBUG_PRINTLN(strip.customPalettes.size());
+  DEBUG_PRINT(F("Sorting palettes: ")); DEBUG_PRINT(getPaletteCount()); DEBUG_PRINT('/'); DEBUG_PRINTLN(customPalettes.size());
   palettes_qstrings = re_findModeStrings(JSON_palette_names, getPaletteCount());
   palettes_alpha_indexes = re_initIndexArray(getPaletteCount());
-  if (strip.customPalettes.size()) {
-    for (int i=0; i<strip.customPalettes.size(); i++) {
-      palettes_alpha_indexes[getPaletteCount()-strip.customPalettes.size()+i] = 255-i;
-      palettes_qstrings[getPaletteCount()-strip.customPalettes.size()+i] = PSTR("~Custom~");
+  if (customPalettes.size()) {
+    for (int i=0; i<customPalettes.size(); i++) {
+      palettes_alpha_indexes[getPaletteCount()-customPalettes.size()+i] = 255-i;
+      palettes_qstrings[getPaletteCount()-customPalettes.size()+i] = PSTR("~Custom~");
     }
   }
   // How many palette names start with '*' and should not be sorted?
   // (Also skipping the first one, 'Default').
   int skipPaletteCount = 1;
   while (pgm_read_byte_near(palettes_qstrings[skipPaletteCount]) == '*') skipPaletteCount++;
-  re_sortModes(palettes_qstrings, palettes_alpha_indexes, getPaletteCount()-strip.customPalettes.size(), skipPaletteCount);
+  re_sortModes(palettes_qstrings, palettes_alpha_indexes, getPaletteCount()-customPalettes.size(), skipPaletteCount);
 }
 
 byte *RotaryEncoderUIUsermod::re_initIndexArray(int numModes) {
@@ -698,7 +698,7 @@ void RotaryEncoderUIUsermod::findCurrentEffectAndPalette() {
 
   effectPaletteIndex = 0;
   DEBUG_PRINTLN(effectPalette);
-  for (unsigned i = 0; i < getPaletteCount()+strip.customPalettes.size(); i++) {
+  for (unsigned i = 0; i < getPaletteCount()+customPalettes.size(); i++) {
     if (palettes_alpha_indexes[i] == effectPalette) {
       effectPaletteIndex = i;
       DEBUG_PRINTLN(F("Found palette."));
@@ -888,7 +888,7 @@ void RotaryEncoderUIUsermod::changePalette(bool increase) {
   }
   display->updateRedrawTime();
 #endif
-  effectPaletteIndex = max(min((unsigned)(increase ? effectPaletteIndex+1 : effectPaletteIndex-1), getPaletteCount()+strip.customPalettes.size()-1), 0U);
+  effectPaletteIndex = max(min((unsigned)(increase ? effectPaletteIndex+1 : effectPaletteIndex-1), getPaletteCount()+customPalettes.size()-1), 0U);
   effectPalette = palettes_alpha_indexes[effectPaletteIndex];
   stateChanged = true;
   if (applyToAll) {
