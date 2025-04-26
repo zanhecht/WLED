@@ -86,7 +86,7 @@ void WS2812FX::setUpMatrix() {
           JsonArray map = pDoc->as<JsonArray>();
           gapSize = map.size();
           if (!map.isNull() && gapSize >= matrixSize) { // not an empty map
-            gapTable = static_cast<int8_t*>(w_malloc(gapSize));
+            gapTable = static_cast<int8_t*>(p_malloc(gapSize));
             if (gapTable) for (size_t i = 0; i < gapSize; i++) {
               gapTable[i] = constrain(map[i], -1, 1);
             }
@@ -113,7 +113,7 @@ void WS2812FX::setUpMatrix() {
       }
 
       // delete gap array as we no longer need it
-      w_free(gapTable);
+      p_free(gapTable);
       resume();
 
       #ifdef WLED_DEBUG
@@ -246,11 +246,11 @@ void Segment::blur2D(uint8_t blur_x, uint8_t blur_y, bool smear) const {
   const unsigned cols = vWidth();
   const unsigned rows = vHeight();
   const auto XY = [&](unsigned x, unsigned y){ return x + y*cols; };
-  uint32_t lastnew;
+  uint32_t lastnew; // not necessary to initialize lastnew and last, as both will be initialized by the first loop iteration
   uint32_t last;
   if (blur_x) {
     const uint8_t keepx = smear ? 255 : 255 - blur_x;
-    const uint8_t seepx = blur_x >> (1 + smear);
+    const uint8_t seepx = blur_x >> 1;
     for (unsigned row = 0; row < rows; row++) { // blur rows (x direction)
       uint32_t carryover = BLACK;
       uint32_t curnew = BLACK;
@@ -273,7 +273,7 @@ void Segment::blur2D(uint8_t blur_x, uint8_t blur_y, bool smear) const {
   }
   if (blur_y) {
     const uint8_t keepy = smear ? 255 : 255 - blur_y;
-    const uint8_t seepy = blur_y >> (1 + smear);
+    const uint8_t seepy = blur_y >> 1;
     for (unsigned col = 0; col < cols; col++) {
       uint32_t carryover = BLACK;
       uint32_t curnew = BLACK;
@@ -584,6 +584,7 @@ void Segment::drawCharacter(unsigned char chr, int16_t x, int16_t y, uint8_t w, 
   chr -= 32; // align with font table entries
   const int font = w*h;
 
+  // if col2 == BLACK then use currently selected palette for gradient otherwise create gradient from color and col2
   CRGBPalette16 grad = col2 ? CRGBPalette16(CRGB(color), CRGB(col2)) : SEGPALETTE; // selected palette as gradient
 
   for (int i = 0; i<h; i++) { // character height

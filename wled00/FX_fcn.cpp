@@ -1034,10 +1034,10 @@ void Segment::blur(uint8_t blur_amount, bool smear) const {
   }
 #endif
   uint8_t keep = smear ? 255 : 255 - blur_amount;
-  uint8_t seep = blur_amount >> (1 + smear);
+  uint8_t seep = blur_amount >> 1;
   unsigned vlength = vLength();
   uint32_t carryover = BLACK;
-  uint32_t lastnew;
+  uint32_t lastnew; // not necessary to initialize lastnew and last, as both will be initialized by the first loop iteration
   uint32_t last;
   uint32_t curnew = BLACK;
   for (unsigned i = 0; i < vlength; i++) {
@@ -1198,7 +1198,12 @@ void WS2812FX::finalizeInit() {
 void WS2812FX::service() {
   unsigned long nowUp = millis(); // Be aware, millis() rolls over every 49 days
   now = nowUp + timebase;
-  if (nowUp - _lastShow < MIN_FRAME_DELAY || _suspend) return;
+  unsigned long elapsed = nowUp - _lastServiceShow;
+  if (_suspend || elapsed <= MIN_FRAME_DELAY) return;   // keep wifi alive - no matter if triggered or unlimited
+  if (!_triggered && (_targetFps != FPS_UNLIMITED)) {   // unlimited mode = no frametime
+    if (elapsed < _frametime) return;                   // too early for service
+  }
+
   bool doShow = false;
 
   _isServicing = true;
@@ -1255,15 +1260,16 @@ void WS2812FX::service() {
   }
 
   #ifdef WLED_DEBUG
-  if (millis() - nowUp > _frametime) DEBUG_PRINTF_P(PSTR("Slow effects %u/%d.\n"), (unsigned)(millis()-nowUp), (int)_frametime);
+  if ((_targetFps != FPS_UNLIMITED) && (millis() - nowUp > _frametime)) DEBUG_PRINTF_P(PSTR("Slow effects %u/%d.\n"), (unsigned)(millis()-nowUp), (int)_frametime);
   #endif
   if (doShow && !_suspend) {
     yield();
     Segment::handleRandomPalette(); // slowly transition random palette; move it into for loop when each segment has individual random palette
+    _lastServiceShow = nowUp; // update timestamp, for precise FPS control
     show();
   }
   #ifdef WLED_DEBUG
-  if (millis() - nowUp > _frametime) DEBUG_PRINTF_P(PSTR("Slow strip %u/%d.\n"), (unsigned)(millis()-nowUp), (int)_frametime);
+  if ((_targetFps != FPS_UNLIMITED) && (millis() - nowUp > _frametime)) DEBUG_PRINTF_P(PSTR("Slow strip %u/%d.\n"), (unsigned)(millis()-nowUp), (int)_frametime);
   #endif
 
   _triggered = false;
@@ -1612,8 +1618,8 @@ void WS2812FX::show() {
   if (newBri != _brightness) BusManager::setBrightness(_brightness);
 
   if (diff > 0) { // skip calculation if no time has passed
-    int fpsCurr = (1000 << FPS_CALC_SHIFT) / diff; // fixed point math (shift left for better precision)
-    _cumulativeFps += ((fpsCurr - (_cumulativeFps << FPS_CALC_SHIFT)) / FPS_CALC_AVG + ((1<<FPS_CALC_SHIFT)/FPS_CALC_AVG)) >> FPS_CALC_SHIFT; // simple PI controller over FPS_CALC_AVG frames
+    size_t fpsCurr = (1000 << FPS_CALC_SHIFT) / diff; // fixed point math
+    _cumulativeFps = (FPS_CALC_AVG * _cumulativeFps + fpsCurr + FPS_CALC_AVG / 2) / (FPS_CALC_AVG + 1);   // "+FPS_CALC_AVG/2" for proper rounding
     _lastShow = showNow;
   }
 }
@@ -1653,8 +1659,9 @@ void WS2812FX::waitForIt() {
 };
 
 void WS2812FX::setTargetFps(unsigned fps) {
-  if (fps > 0 && fps <= 120) _targetFps = fps;
-  _frametime = 1000 / _targetFps;
+  if (fps <= 250) _targetFps = fps;
+  if (_targetFps > 0) _frametime = 1000 / _targetFps;
+  else _frametime = MIN_FRAME_DELAY;     // unlimited mode
 }
 
 void WS2812FX::setCCT(uint16_t k) {

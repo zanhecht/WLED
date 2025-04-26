@@ -1,3 +1,4 @@
+#pragma once
 #ifndef WLED_CONST_H
 #define WLED_CONST_H
 
@@ -49,6 +50,9 @@
   #define WLED_MAX_ANALOG_CHANNELS 5
   #define WLED_MIN_VIRTUAL_BUSSES 3         // no longer used for bus creation but used to distinguish S2/S3 in UI
 #else
+  #if !defined(LEDC_CHANNEL_MAX) || !defined(LEDC_SPEED_MODE_MAX)
+    #include "driver/ledc.h" // needed for analog/LEDC channel counts
+  #endif
   #define WLED_MAX_ANALOG_CHANNELS (LEDC_CHANNEL_MAX*LEDC_SPEED_MODE_MAX)
   #if defined(CONFIG_IDF_TARGET_ESP32C3)    // 2 RMT, 6 LEDC, only has 1 I2S but NPB does not support it ATM
     #define WLED_MAX_DIGITAL_CHANNELS 2
@@ -76,6 +80,7 @@
   #undef WLED_MAX_BUSSES
 #endif
 #define WLED_MAX_BUSSES (WLED_MAX_DIGITAL_CHANNELS+WLED_MAX_ANALOG_CHANNELS)
+static_assert(WLED_MAX_BUSSES <= 32, "WLED_MAX_BUSSES exceeds hard limit");
 
 // Maximum number of pins per output. 5 for RGBCCT analog LEDs.
 #define OUTPUT_MAX_PINS 5

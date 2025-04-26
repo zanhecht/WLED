@@ -620,7 +620,7 @@ int32_t hw_random(int32_t lowerlimit, int32_t upperlimit) {
 }
 
 #ifndef ESP8266
-void *w_malloc(size_t size) {
+void *p_malloc(size_t size) {
   int caps1 = MALLOC_CAP_SPIRAM  | MALLOC_CAP_8BIT;
   int caps2 = MALLOC_CAP_DEFAULT | MALLOC_CAP_8BIT;
   if (psramSafe) {
@@ -630,7 +630,7 @@ void *w_malloc(size_t size) {
   return heap_caps_malloc(size, caps2);
 }
 
-void *w_realloc(void *ptr, size_t size) {
+void *p_realloc(void *ptr, size_t size) {
   int caps1 = MALLOC_CAP_SPIRAM  | MALLOC_CAP_8BIT;
   int caps2 = MALLOC_CAP_DEFAULT | MALLOC_CAP_8BIT;
   if (psramSafe) {
@@ -640,7 +640,7 @@ void *w_realloc(void *ptr, size_t size) {
   return heap_caps_realloc(ptr, size, caps2);
 }
 
-void *w_calloc(size_t count, size_t size) {
+void *p_calloc(size_t count, size_t size) {
   int caps1 = MALLOC_CAP_SPIRAM  | MALLOC_CAP_8BIT;
   int caps2 = MALLOC_CAP_DEFAULT | MALLOC_CAP_8BIT;
   if (psramSafe) {

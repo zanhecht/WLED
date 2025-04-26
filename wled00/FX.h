@@ -833,8 +833,8 @@ class WS2812FX {
       _length(DEFAULT_LED_COUNT),
       _transitionDur(750),
       _frametime(FRAMETIME_FIXED),
+      _cumulativeFps(WLED_FPS << FPS_CALC_SHIFT),
       _targetFps(WLED_FPS),
-      _cumulativeFps(WLED_FPS),
       _isServicing(false),
       _isOffRefreshRequired(false),
       _hasWhiteChannel(false),
@@ -845,7 +845,8 @@ class WS2812FX {
       _callback(nullptr),
       customMappingTable(nullptr),
       customMappingSize(0),
-      _lastShow(0)
+      _lastShow(0),
+      _lastServiceShow(0)
     {
       _mode.reserve(_modeCount);     // allocate memory to prevent initial fragmentation (does not increase size())
       _modeData.reserve(_modeCount); // allocate memory to prevent initial fragmentation (does not increase size())
@@ -1011,8 +1012,8 @@ class WS2812FX {
     uint16_t _transitionDur;
 
     uint16_t _frametime;
+    uint16_t _cumulativeFps;
     uint8_t  _targetFps;
-    uint8_t  _cumulativeFps;
 
     // will require only 1 byte
     struct {

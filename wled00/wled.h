@@ -64,6 +64,9 @@
 //This is generally a terrible idea, but improves boot success on boards with a 3.3v regulator + cap setup that can't provide 400mA peaks
 //#define WLED_DISABLE_BROWNOUT_DET
 
+#include <cstddef>
+#include <vector>
+
 // Library inclusions.
 #include <Arduino.h>
 #ifdef ESP8266
