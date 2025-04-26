@@ -63,7 +63,8 @@ jobs:
     - name: Add usermods environment
       run: |
         cp -v usermods/platformio_override.usermods.ini platformio_override.ini
-        echo -n "custom_usermods = ${{ matrix.usermod }}" >> platformio_override.ini
+        echo >> platformio_override.ini
+        echo  "custom_usermods = ${{ matrix.usermod }}" >> platformio_override.ini
 
     - name: Build firmware
       run: pio run -e ${{ matrix.environment }}    
