@@ -18,7 +18,7 @@
 
 /*
  * Usermods allow you to add own functionality to WLED more easily
- * See: https://github.com/Aircoookie/WLED/wiki/Add-own-functionality
+ * See: https://github.com/wled-dev/WLED/wiki/Add-own-functionality
  * 
  * This is an audioreactive v2 usermod.
  * ....
@@ -869,7 +869,7 @@ class AudioReactive : public Usermod {
       const int   AGC_preset = (soundAgc > 0)? (soundAgc-1): 0; // make sure the _compiler_ knows this value will not change while we are inside the function
 
       #ifdef WLED_DISABLE_SOUND
-        micIn = inoise8(millis(), millis());          // Simulated analog read
+        micIn = perlin8(millis(), millis());          // Simulated analog read
         micDataReal = micIn;
       #else
         #ifdef ARDUINO_ARCH_ESP32
