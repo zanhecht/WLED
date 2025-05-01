@@ -108,10 +108,10 @@ def wrapped_ConfigureProjectLibBuilder(xenv):
   for dep in result.depbuilders:
     if is_wled_module(dep):
       # Add the wled folder to the include path
-      dep.env.PrependUnique(CPPPATH=wled_dir)
+      dep.env.PrependUnique(CPPPATH=str(wled_dir))
       # Add WLED's own dependencies
       for dir in extra_include_dirs:
-        dep.env.PrependUnique(CPPPATH=dir)
+        dep.env.PrependUnique(CPPPATH=str(dir))
       # Enforce that libArchive is not set; we must link them directly to the executable
       if dep.lib_archive:
         build = dep._manifest.get("build", {})
