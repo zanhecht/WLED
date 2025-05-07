@@ -2,6 +2,8 @@ Import('env')
 import os.path
 from collections import deque
 from pathlib import Path   # For OS-agnostic path manipulation
+from click import secho
+from SCons.Script import Exit
 from platformio.builder.tools.piolib import LibBuilderBase
 from platformio.package.manager.library import LibraryPackageManager
 
@@ -105,6 +107,7 @@ def wrapped_ConfigureProjectLibBuilder(xenv):
   for dep in result.depbuilders:
      cached_add_includes(dep, processed_deps, extra_include_dirs)
 
+  broken_usermods = []
   for dep in result.depbuilders:
     if is_wled_module(dep):
       # Add the wled folder to the include path
@@ -114,9 +117,15 @@ def wrapped_ConfigureProjectLibBuilder(xenv):
         dep.env.PrependUnique(CPPPATH=str(dir))
       # Enforce that libArchive is not set; we must link them directly to the executable
       if dep.lib_archive:
-        build = dep._manifest.get("build", {})
-        build["libArchive"] = False
-        dep._manifest["build"] = build
+        broken_usermods.append(dep)
+
+  if broken_usermods:
+    broken_usermods = [usermod.name for usermod in broken_usermods]
+    secho(
+      f"ERROR: libArchive=false is missing on usermod(s) {' '.join(broken_usermods)} -- modules will not compile in correctly",
+      fg="red",
+      err=True)    
+    Exit(1)
 
   return result
 
