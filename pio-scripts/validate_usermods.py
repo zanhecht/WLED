@@ -79,7 +79,7 @@ def validate_map_file(source, target, env):
     usermod_object_count = count_registered_usermods(map_file_contents)
 
     secho(f"INFO: {len(usermod_dirs)}/{len(usermods)} libraries linked via custom_usermods, producing {usermod_object_count} usermod object entries")
-    missing_usermods = confirmed_usermods.difference(usermod_dirs)
+    missing_usermods = set(usermod_dirs).difference(confirmed_usermods)
     if missing_usermods:
         secho(
             f"ERROR: No object files from {missing_usermods} found in linked output!",
