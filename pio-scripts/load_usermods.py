@@ -7,7 +7,7 @@ from SCons.Script import Exit
 from platformio.builder.tools.piolib import LibBuilderBase
 from platformio.package.manager.library import LibraryPackageManager
 
-usermod_dir = Path(env["PROJECT_DIR"]) / "usermods"
+usermod_dir = Path(env["PROJECT_DIR"]).resolve() / "usermods"
 
 # "usermods" environment: expand list of usermods to everything in the folder
 if env['PIOENV'] == "usermods":
@@ -48,7 +48,7 @@ if usermods:
   src_dir = proj.get("platformio", "src_dir")
   src_dir = src_dir.replace('\\','/')
   mod_paths = {mod: find_usermod(mod) for mod in usermods.split()}
-  usermods = [f"{mod} = symlink://{path}" for mod, path in mod_paths.items()]
+  usermods = [f"{mod} = symlink://{path.resolve()}" for mod, path in mod_paths.items()]
   proj.set("env:" + env['PIOENV'], 'lib_deps', deps + usermods)
   # Force usermods to be installed in to the environment build state before the LDF runs
   # Otherwise we won't be able to see them until it's too late to change their paths for LDF
