@@ -89,4 +89,4 @@ def validate_map_file(source, target, env):
     return None
 
 Import("env")
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", Action(validate_map_file, cmdstr='Checking map file...'))
+env.Append(LINKFLAGS=[env.subst("-Wl,--Map=${BUILD_DIR}/${PROGNAME}.map")])
