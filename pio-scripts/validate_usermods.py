@@ -19,7 +19,7 @@ def check_map_file_objects(map_file: list[str], usermod_dirs: list[str]) -> set[
     # Join directories into alternation
     usermod_dir_regex = "|".join([re.escape(dir) for dir in usermod_dirs])
     # Matches nonzero address, any size, and any path in a matching directory
-    object_path_regex = re.compile(r"0x0*[1-9a-f][0-9a-f]*\s+0x[0-9a-f]+\s+\S+/(" + usermod_dir_regex + r")/\S+\.o")
+    object_path_regex = re.compile(r"0x0*[1-9a-f][0-9a-f]*\s+0x[0-9a-f]+\s+\S+[/\\](" + usermod_dir_regex + r")[/\\]\S+\.o")
 
     found = set()
     for line in map_file:
