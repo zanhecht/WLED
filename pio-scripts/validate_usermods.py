@@ -89,5 +89,6 @@ def validate_map_file(source, target, env):
     return None
 
 Import("env")
-env.Append(LINKFLAGS=[env.subst("-Wl,--Map=${BUILD_DIR}/${PROGNAME}.map")])
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", Action(validate_map_file, cmdstr='Checking linked usermods in map file...'))
+if not env.GetProjectOption("custom_all_usermods_enabled",""):   # TODO: fix handling of platform mismatches
+    env.Append(LINKFLAGS=[env.subst("-Wl,--Map=${BUILD_DIR}/${PROGNAME}.map")])
+    env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", Action(validate_map_file, cmdstr='Checking linked usermods in map file...'))

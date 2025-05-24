@@ -9,12 +9,6 @@ from platformio.package.manager.library import LibraryPackageManager
 
 usermod_dir = Path(env["PROJECT_DIR"]).resolve() / "usermods"
 
-# "usermods" environment: expand list of usermods to everything in the folder
-if env['PIOENV'] == "usermods":
-   # Add all usermods
-   all_usermods = [f for f in usermod_dir.iterdir() if f.is_dir() and f.joinpath('library.json').exists()]
-   env.GetProjectConfig().set(f"env:usermods", 'custom_usermods', " ".join([f.name for f in all_usermods]))
-
 # Utility functions
 def find_usermod(mod: str) -> Path:
   """Locate this library in the usermods folder.
@@ -41,38 +35,26 @@ def is_wled_module(dep: LibBuilderBase) -> bool:
 ## Script starts here
 # Process usermod option
 usermods = env.GetProjectOption("custom_usermods","")
+
+# Handle "all usermods" case
+if usermods == '*':
+  usermods = [f.name for f in usermod_dir.iterdir() if f.is_dir() and f.joinpath('library.json').exists()]
+  # Update the environment, as many modules use scripts to detect their dependencies
+  env.GetProjectConfig().set("env:" + env['PIOENV'], 'custom_usermods', " ".join(usermods))
+  # Leave a note for the validation script
+  env.GetProjectConfig().set("env:" + env['PIOENV'], 'custom_all_usermods_enabled', "1")
+else:
+  usermods = usermods.split()
+
 if usermods:
   # Inject usermods in to project lib_deps
   proj = env.GetProjectConfig()
   deps = env.GetProjectOption('lib_deps')
   src_dir = proj.get("platformio", "src_dir")
   src_dir = src_dir.replace('\\','/')
-  mod_paths = {mod: find_usermod(mod) for mod in usermods.split()}
+  mod_paths = {mod: find_usermod(mod) for mod in usermods}
   usermods = [f"{mod} = symlink://{path.resolve()}" for mod, path in mod_paths.items()]
   proj.set("env:" + env['PIOENV'], 'lib_deps', deps + usermods)
-  # Force usermods to be installed in to the environment build state before the LDF runs
-  # Otherwise we won't be able to see them until it's too late to change their paths for LDF
-  # Logic is largely borrowed from PlaformIO internals
-  not_found_specs = []
-  for spec in usermods:
-    found = False
-    for storage_dir in env.GetLibSourceDirs():
-      #print(f"Checking {storage_dir} for {spec}")
-      lm = LibraryPackageManager(storage_dir)
-      if lm.get_package(spec):
-          #print("Found!")
-          found = True
-          break
-    if not found:
-        #print("Missing!")
-        not_found_specs.append(spec)
-  if not_found_specs:
-      lm = LibraryPackageManager(
-          env.subst(os.path.join("$PROJECT_LIBDEPS_DIR", "$PIOENV"))
-      )
-      for spec in not_found_specs:
-        #print(f"LU: forcing install of {spec}")
-        lm.install(spec)
 
 
 # Utility function for assembling usermod include paths
