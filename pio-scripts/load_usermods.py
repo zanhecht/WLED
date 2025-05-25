@@ -48,14 +48,8 @@ else:
 
 if usermods:
   # Inject usermods in to project lib_deps
-  proj = env.GetProjectConfig()
-  deps = env.GetProjectOption('lib_deps')
-  src_dir = proj.get("platformio", "src_dir")
-  src_dir = src_dir.replace('\\','/')
-  mod_paths = {mod: find_usermod(mod) for mod in usermods}
-  usermods = [f"{mod} = symlink://{path.resolve()}" for mod, path in mod_paths.items()]
-  proj.set("env:" + env['PIOENV'], 'lib_deps', deps + usermods)
-
+  symlinks = [f"symlink://{find_usermod(mod).resolve()}" for mod in usermods]
+  env.GetProjectConfig().set("env:" + env['PIOENV'], 'lib_deps', env.GetProjectOption('lib_deps') + symlinks)
 
 # Utility function for assembling usermod include paths
 def cached_add_includes(dep, dep_cache: set, includes: deque):
