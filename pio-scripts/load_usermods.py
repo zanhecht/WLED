@@ -39,10 +39,6 @@ usermods = env.GetProjectOption("custom_usermods","")
 # Handle "all usermods" case
 if usermods == '*':
   usermods = [f.name for f in usermod_dir.iterdir() if f.is_dir() and f.joinpath('library.json').exists()]
-  # Update the environment, as many modules use scripts to detect their dependencies
-  env.GetProjectConfig().set("env:" + env['PIOENV'], 'custom_usermods', " ".join(usermods))
-  # Leave a note for the validation script
-  env.GetProjectConfig().set("env:" + env['PIOENV'], 'custom_all_usermods_enabled', "1")
 else:
   usermods = usermods.split()
 
