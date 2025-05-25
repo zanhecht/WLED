@@ -1,11 +1,9 @@
 Import('env')
-import os.path
 from collections import deque
 from pathlib import Path   # For OS-agnostic path manipulation
 from click import secho
 from SCons.Script import Exit
 from platformio.builder.tools.piolib import LibBuilderBase
-from platformio.package.manager.library import LibraryPackageManager
 
 usermod_dir = Path(env["PROJECT_DIR"]).resolve() / "usermods"
 
@@ -21,7 +19,7 @@ def find_usermod(mod: str) -> Path:
     return mp
   mp = usermod_dir / f"{mod}_v2"
   if mp.exists():
-    return mp  
+    return mp
   mp = usermod_dir / f"usermod_v2_{mod}"
   if mp.exists():
     return mp
@@ -50,7 +48,7 @@ if usermods:
 # Utility function for assembling usermod include paths
 def cached_add_includes(dep, dep_cache: set, includes: deque):
   """ Add dep's include paths to includes if it's not in the cache """
-  if dep not in dep_cache:   
+  if dep not in dep_cache:
     dep_cache.add(dep)
     for include in dep.get_include_dirs():
       if include not in includes:
@@ -96,7 +94,7 @@ def wrapped_ConfigureProjectLibBuilder(xenv):
     secho(
       f"ERROR: libArchive=false is missing on usermod(s) {' '.join(broken_usermods)} -- modules will not compile in correctly",
       fg="red",
-      err=True)    
+      err=True)
     Exit(1)
 
   return result

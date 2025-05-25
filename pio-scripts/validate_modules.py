@@ -1,10 +1,8 @@
 import re
-import sys
 from pathlib import Path   # For OS-agnostic path manipulation
 from typing import Iterable
 from click import secho
 from SCons.Script import Action, Exit
-from platformio import util
 from platformio.builder.tools.piolib import LibBuilderBase
 
 
@@ -56,8 +54,8 @@ def validate_map_file(source, target, env):
         Exit(1)
 
     # Identify the WLED module source directories
-    module_lib_builders = [builder for builder in env.GetLibBuilders() if is_wled_module(env, builder)]    
-    
+    module_lib_builders = [builder for builder in env.GetLibBuilders() if is_wled_module(env, builder)]
+
     if env.GetProjectOption("custom_usermods","") == "*":
         # All usermods build; filter non-platform-OK modules
         module_lib_builders = [builder for builder in module_lib_builders if env.IsCompatibleLibBuilder(builder)]
@@ -68,8 +66,7 @@ def validate_map_file(source, target, env):
                 f"ERROR: Modules {[b.name for b in incompatible_builders]} are not compatible with this platform!",
                 fg="red",
                 err=True)
-            Exit(1)            
-        pass
+            Exit(1)
 
     # Extract the values we care about
     modules = {Path(builder.build_dir).name: builder.name for builder in module_lib_builders}
@@ -77,7 +74,7 @@ def validate_map_file(source, target, env):
 
     # Now parse the map file
     map_file_contents = read_lines(map_file_path)
-    usermod_object_count = count_usermod_objects(map_file_contents)   
+    usermod_object_count = count_usermod_objects(map_file_contents)
     secho(f"INFO: {usermod_object_count} usermod object entries")
 
     confirmed_modules = check_map_file_objects(map_file_contents, modules.keys())
