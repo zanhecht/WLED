@@ -1038,12 +1038,12 @@ void Segment::blur(uint8_t blur_amount, bool smear) const {
 #endif
   uint8_t keep = smear ? 255 : 255 - blur_amount;
   uint8_t seep = blur_amount >> 1;
-  unsigned rlength = rawLength();
+  unsigned vlength = vLength();
   uint32_t carryover = BLACK;
   uint32_t lastnew; // not necessary to initialize lastnew and last, as both will be initialized by the first loop iteration
   uint32_t last;
   uint32_t curnew = BLACK;
-  for (unsigned i = 0; i < rlength; i++) {
+  for (unsigned i = 0; i < vlength; i++) {
     uint32_t cur = getPixelColorRaw(i);
     uint32_t part = color_fade(cur, seep);
     curnew = color_fade(cur, keep);
@@ -1057,7 +1057,7 @@ void Segment::blur(uint8_t blur_amount, bool smear) const {
     last = cur; // save original value for comparison on next iteration
     carryover = part;
   }
-  setPixelColorRaw(rlength - 1, curnew);
+  setPixelColorRaw(vlength - 1, curnew);
 }
 
 /*
