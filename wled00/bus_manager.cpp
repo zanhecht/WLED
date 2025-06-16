@@ -890,7 +890,7 @@ BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.
    https://www.electrodragon.com/product/rgb-matrix-panel-drive-interface-board-for-esp32-dma/
 
   */
- mxconfig.gpio = { 25, 26, 27, 14, 12, 13, 23, 9, 5, 17, 18, 4, 15, 16 };
+ mxconfig.gpio = { 25, 26, 27, 14, 12, 13, 23, 19, 5, 17, 18, 4, 15, 16 };
 
 #endif
 
