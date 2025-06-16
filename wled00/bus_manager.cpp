@@ -782,7 +782,7 @@ void BusNetwork::cleanup() {
 #error ESP8266 does not support HUB75
 #endif
 
-BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWhite) {
+BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWhite) {
 
   _valid = false;
   _hasRgb = true;
@@ -823,11 +823,11 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
           virtualDisp->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
           break;
         default:
-          DEBUG_PRINTLN("Unsupported height");
+          DEBUGBUS_PRINTLN("Unsupported height");
           return;
       }
   } else {
-    DEBUG_PRINTLN("Unknown type");
+    DEBUGBUS_PRINTLN("Unknown type");
     return;
   }
 
@@ -842,7 +842,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   mxconfig.chain_length = max((u_int8_t) 1, min(bc.pins[2], (u_int8_t) 4)); // prevent bad data preventing boot due to low memory
 
   if(mxconfig.mx_height >= 64 && (mxconfig.chain_length > 1)) {
-    DEBUG_PRINTLN("WARNING, only single panel can be used of 64 pixel boards due to memory");
+    DEBUGBUS_PRINTLN("WARNING, only single panel can be used of 64 pixel boards due to memory");
     mxconfig.chain_length = 1;
   }
 
@@ -852,12 +852,12 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
 #if defined(ARDUINO_ADAFRUIT_MATRIXPORTAL_ESP32S3) // MatrixPortal ESP32-S3
 
   // https://www.adafruit.com/product/5778
-  DEBUG_PRINTLN("MatrixPanel_I2S_DMA - Matrix Portal S3 config");
+  DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA - Matrix Portal S3 config");
   mxconfig.gpio = { 42, 41, 40, 38, 39, 37,  45, 36, 48, 35, 21, 47, 14, 2 };
 
 #elif defined(ESP32_FORUM_PINOUT) // Common format for boards designed for SmartMatrix
 
-  DEBUG_PRINTLN("MatrixPanel_I2S_DMA - ESP32_FORUM_PINOUT");
+  DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA - ESP32_FORUM_PINOUT");
 /*
     ESP32 with SmartMatrix's default pinout - ESP32_FORUM_PINOUT
     https://github.com/pixelmatix/SmartMatrix/blob/teensylc/src/MatrixHardware_ESP32_V0.h
@@ -867,7 +867,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
  mxconfig.gpio = { 2, 15, 4, 16, 27, 17, 5, 18, 19, 21, 12, 26, 25, 22 };
 
 #else
-  DEBUG_PRINTLN("MatrixPanel_I2S_DMA - Default pins");
+  DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA - Default pins");
   /*
    https://github.com/mrfaptastic/ESP32-HUB75-MatrixPanel-DMA?tab=readme-ov-file
 
@@ -886,9 +886,9 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   PinManager::allocateMultiplePins(pins, PIN_COUNT, PinOwner::HUB75, true);
 
   if(bc.colorOrder == COL_ORDER_RGB) {
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA = Default color order (RGB)");
+    DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA = Default color order (RGB)");
   } else if(bc.colorOrder == COL_ORDER_BGR) {
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA = color order BGR");
+    DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA = color order BGR");
     uint8_t tmpPin;
     tmpPin = mxconfig.gpio.r1;
     mxconfig.gpio.r1 = mxconfig.gpio.b1;
@@ -898,61 +898,61 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     mxconfig.gpio.b2 = tmpPin;
   }
   else {
-    DEBUG_PRINTF("MatrixPanel_I2S_DMA = unsupported color order %u\n", bc.colorOrder);
+    DEBUGBUS_PRINTF("MatrixPanel_I2S_DMA = unsupported color order %u\n", bc.colorOrder);
   }
 
-  DEBUG_PRINTF("MatrixPanel_I2S_DMA config - %ux%u length: %u\n", mxconfig.mx_width, mxconfig.mx_height, mxconfig.chain_length);
-  DEBUG_PRINTF("R1_PIN=%u, G1_PIN=%u, B1_PIN=%u, R2_PIN=%u, G2_PIN=%u, B2_PIN=%u, A_PIN=%u, B_PIN=%u, C_PIN=%u, D_PIN=%u, E_PIN=%u, LAT_PIN=%u, OE_PIN=%u, CLK_PIN=%u\n",
+  DEBUGBUS_PRINTF("MatrixPanel_I2S_DMA config - %ux%u length: %u\n", mxconfig.mx_width, mxconfig.mx_height, mxconfig.chain_length);
+  DEBUGBUS_PRINTF("R1_PIN=%u, G1_PIN=%u, B1_PIN=%u, R2_PIN=%u, G2_PIN=%u, B2_PIN=%u, A_PIN=%u, B_PIN=%u, C_PIN=%u, D_PIN=%u, E_PIN=%u, LAT_PIN=%u, OE_PIN=%u, CLK_PIN=%u\n",
                 mxconfig.gpio.r1, mxconfig.gpio.g1, mxconfig.gpio.b1, mxconfig.gpio.r2, mxconfig.gpio.g2, mxconfig.gpio.b2,
                 mxconfig.gpio.a, mxconfig.gpio.b, mxconfig.gpio.c, mxconfig.gpio.d, mxconfig.gpio.e, mxconfig.gpio.lat, mxconfig.gpio.oe, mxconfig.gpio.clk);
 
   // OK, now we can create our matrix object
   display = new MatrixPanel_I2S_DMA(mxconfig);
   if (display == nullptr) {
-      DEBUG_PRINTLN("****** MatrixPanel_I2S_DMA !KABOOM! driver allocation failed ***********");
-      DEBUG_PRINT(F("heap usage: ")); DEBUG_PRINTLN(lastHeap - ESP.getFreeHeap());
+      DEBUGBUS_PRINTLN("****** MatrixPanel_I2S_DMA !KABOOM! driver allocation failed ***********");
+      DEBUGBUS_PRINT(F("heap usage: ")); DEBUGBUS_PRINTLN(lastHeap - ESP.getFreeHeap());
       return;
   }
 
   this->_len = (display->width() * display->height());
-  DEBUG_PRINTF("Length: %u\n", _len);
+  DEBUGBUS_PRINTF("Length: %u\n", _len);
   if(this->_len >= MAX_LEDS) {
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA Too many LEDS - playing safe");
+    DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA Too many LEDS - playing safe");
     return;
   }
 
-  DEBUG_PRINTLN("MatrixPanel_I2S_DMA created");
+  DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA created");
   // let's adjust default brightness
   display->setBrightness8(25);    // range is 0-255, 0 - 0%, 255 - 100%
 
   delay(24); // experimental
-  DEBUG_PRINT(F("heap usage: ")); DEBUG_PRINTLN(lastHeap - ESP.getFreeHeap());
+  DEBUGBUS_PRINT(F("heap usage: ")); DEBUGBUS_PRINTLN(lastHeap - ESP.getFreeHeap());
   // Allocate memory and start DMA display
   if( not display->begin() ) {
-      DEBUG_PRINTLN("****** MatrixPanel_I2S_DMA !KABOOM! I2S memory allocation failed ***********");
-      DEBUG_PRINT(F("heap usage: ")); DEBUG_PRINTLN(lastHeap - ESP.getFreeHeap());
+      DEBUGBUS_PRINTLN("****** MatrixPanel_I2S_DMA !KABOOM! I2S memory allocation failed ***********");
+      DEBUGBUS_PRINT(F("heap usage: ")); DEBUGBUS_PRINTLN(lastHeap - ESP.getFreeHeap());
       return;
   }
   else {
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA begin ok");
-    DEBUG_PRINT(F("heap usage: ")); DEBUG_PRINTLN(lastHeap - ESP.getFreeHeap());
+    DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA begin ok");
+    DEBUGBUS_PRINT(F("heap usage: ")); DEBUGBUS_PRINTLN(lastHeap - ESP.getFreeHeap());
     delay(18);   // experiment - give the driver a moment (~ one full frame @ 60hz) to settle
     _valid = true;
     display->clearScreen();   // initially clear the screen buffer
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA clear ok");
+    DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA clear ok");
 
     if (_ledBuffer) free(_ledBuffer);                 // should not happen
     if (_ledsDirty) free(_ledsDirty);                 // should not happen
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA allocate memory");
+    DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA allocate memory");
     _ledsDirty = (byte*) malloc(getBitArrayBytes(_len));  // create LEDs dirty bits
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA allocate memory ok");
+    DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA allocate memory ok");
 
     if (_ledsDirty == nullptr) {
       display->stopDMAoutput();
       delete display; display = nullptr;
       _valid = false;
-      DEBUG_PRINTLN(F("MatrixPanel_I2S_DMA not started - not enough memory for dirty bits!"));
-      DEBUG_PRINT(F("heap usage: ")); DEBUG_PRINTLN(lastHeap - ESP.getFreeHeap());
+      DEBUGBUS_PRINTLN(F("MatrixPanel_I2S_DMA not started - not enough memory for dirty bits!"));
+      DEBUGBUS_PRINT(F("heap usage: ")); DEBUGBUS_PRINTLN(lastHeap - ESP.getFreeHeap());
       return;  //  fail is we cannot get memory for the buffer
     }
     setBitArray(_ledsDirty, _len, false);             // reset dirty bits
@@ -967,20 +967,20 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     _panelWidth = virtualDisp ? virtualDisp->width() : display->width();  // cache width - it will never change
   }
 
-  DEBUG_PRINT(F("MatrixPanel_I2S_DMA "));
-  DEBUG_PRINTF("%sstarted, width=%u, %u pixels.\n", _valid? "":"not ", _panelWidth, _len);
+  DEBUGBUS_PRINT(F("MatrixPanel_I2S_DMA "));
+  DEBUGBUS_PRINTF("%sstarted, width=%u, %u pixels.\n", _valid? "":"not ", _panelWidth, _len);
 
-  if (mxconfig.double_buff == true) DEBUG_PRINTLN(F("MatrixPanel_I2S_DMA driver native double-buffering enabled."));
-  if (_ledBuffer != nullptr) DEBUG_PRINTLN(F("MatrixPanel_I2S_DMA LEDS buffer enabled."));
-  if (_ledsDirty != nullptr) DEBUG_PRINTLN(F("MatrixPanel_I2S_DMA LEDS dirty bit optimization enabled."));
+  if (mxconfig.double_buff == true) DEBUGBUS_PRINTLN(F("MatrixPanel_I2S_DMA driver native double-buffering enabled."));
+  if (_ledBuffer != nullptr) DEBUGBUS_PRINTLN(F("MatrixPanel_I2S_DMA LEDS buffer enabled."));
+  if (_ledsDirty != nullptr) DEBUGBUS_PRINTLN(F("MatrixPanel_I2S_DMA LEDS dirty bit optimization enabled."));
   if ((_ledBuffer != nullptr) || (_ledsDirty != nullptr)) {
-    DEBUG_PRINT(F("MatrixPanel_I2S_DMA LEDS buffer uses "));
-    DEBUG_PRINT((_ledBuffer? _len*sizeof(CRGB) :0) + (_ledsDirty? getBitArrayBytes(_len) :0));
-    DEBUG_PRINTLN(F(" bytes."));
+    DEBUGBUS_PRINT(F("MatrixPanel_I2S_DMA LEDS buffer uses "));
+    DEBUGBUS_PRINT((_ledBuffer? _len*sizeof(CRGB) :0) + (_ledsDirty? getBitArrayBytes(_len) :0));
+    DEBUGBUS_PRINTLN(F(" bytes."));
   }
 }
 
-void __attribute__((hot)) BusHub75Matrix::setPixelColor(uint16_t pix, uint32_t c) {
+void __attribute__((hot)) BusHub75Matrix::setPixelColor(unsigned pix, uint32_t c) {
   if (!_valid || pix >= _len) return;
   // if (_cct >= 1900) c = colorBalanceFromKelvin(_cct, c); //color correction from CCT
 
@@ -1014,7 +1014,7 @@ void __attribute__((hot)) BusHub75Matrix::setPixelColor(uint16_t pix, uint32_t c
   }
 }
 
-uint32_t BusHub75Matrix::getPixelColor(uint16_t pix) const {
+uint32_t BusHub75Matrix::getPixelColor(unsigned pix) const {
   if (!_valid || pix >= _len) return IS_BLACK;
   if (_ledBuffer)
     return uint32_t(_ledBuffer[pix].scale8(_bri)) & 0x00FFFFFF;  // scale8() is needed to mimic NeoPixelBus, which returns scaled-down colours
@@ -1070,7 +1070,7 @@ void BusHub75Matrix::cleanup() {
   _valid = false;
   _panelWidth = 0;
   deallocatePins();
-  DEBUG_PRINTLN("HUB75 output ended.");
+  DEBUGBUS_PRINTLN("HUB75 output ended.");
 
   //if (virtualDisp != nullptr) delete virtualDisp;  // warning: deleting object of polymorphic class type 'VirtualMatrixPanel' which has non-virtual destructor might cause undefined behavior
   delete display;
@@ -1093,7 +1093,7 @@ std::vector<LEDType> BusHub75Matrix::getLEDTypes() {
   };
 }
 
-uint8_t BusHub75Matrix::getPins(uint8_t* pinArray) const {
+size_t BusHub75Matrix::getPins(uint8_t* pinArray) const {
   pinArray[0] = mxconfig.mx_width;
   pinArray[1] = mxconfig.mx_height;
   pinArray[2] = mxconfig.chain_length;
