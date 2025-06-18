@@ -56,19 +56,6 @@ def validate_map_file(source, target, env):
     # Identify the WLED module builders, set by load_usermods.py
     module_lib_builders = env['WLED_MODULES']
 
-    # Filter/warn if an incompatible usermod was requested
-    if env.GetProjectOption("custom_usermods","") == "*":
-        # All usermods build; filter non-platform-OK modules
-        module_lib_builders = [builder for builder in module_lib_builders if env.IsCompatibleLibBuilder(builder)]
-    else:
-        incompatible_builders = [builder for builder in module_lib_builders if not env.IsCompatibleLibBuilder(builder)]
-        if incompatible_builders:
-            secho(
-                f"ERROR: Modules {[b.name for b in incompatible_builders]} are not compatible with this platform!",
-                fg="red",
-                err=True)
-            Exit(1)
-
     # Extract the values we care about
     modules = {Path(builder.build_dir).name: builder.name for builder in module_lib_builders}
     secho(f"INFO: {len(modules)} libraries linked as WLED optional/user modules")
