@@ -53,9 +53,10 @@ def validate_map_file(source, target, env):
         secho(f"ERROR: Map file not found: {map_file_path}", fg="red", err=True)
         Exit(1)
 
-    # Identify the WLED module source directories
-    module_lib_builders = [builder for builder in env.GetLibBuilders() if is_wled_module(env, builder)]
+    # Identify the WLED module builders, set by load_usermods.py
+    module_lib_builders = env['WLED_MODULES']
 
+    # Filter/warn if an incompatible usermod was requested
     if env.GetProjectOption("custom_usermods","") == "*":
         # All usermods build; filter non-platform-OK modules
         module_lib_builders = [builder for builder in module_lib_builders if env.IsCompatibleLibBuilder(builder)]
