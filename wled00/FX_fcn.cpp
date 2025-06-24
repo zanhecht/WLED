@@ -1615,7 +1615,7 @@ void WS2812FX::show() {
   uint8_t newBri = estimateCurrentAndLimitBri(_brightness, _pixels);
   if (newBri != _brightness) BusManager::setBrightness(newBri);
 
-  // paint actuall pixels
+  // paint actual pixels
   int oldCCT = Bus::getCCT(); // store original CCT value (since it is global)
   // when cctFromRgb is true we implicitly calculate WW and CW from RGB values (cct==-1)
   if (cctFromRgb) BusManager::setSegmentCCT(-1);
