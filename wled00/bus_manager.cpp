@@ -783,7 +783,7 @@ void BusNetwork::cleanup() {
 #endif
 
 BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWhite) {
-
+  size_t lastHeap = ESP.getFreeHeap();
   _valid = false;
   _hasRgb = true;
   _hasWhite = false;
@@ -905,7 +905,7 @@ BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.
     DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA = Default color order (RGB)");
   } else if(bc.colorOrder == COL_ORDER_BGR) {
     DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA = color order BGR");
-    uint8_t tmpPin;
+    int8_t tmpPin;
     tmpPin = mxconfig.gpio.r1;
     mxconfig.gpio.r1 = mxconfig.gpio.b1;
     mxconfig.gpio.b1 = tmpPin;
