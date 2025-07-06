@@ -896,7 +896,10 @@ BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.
 
   int8_t pins[PIN_COUNT];
   memcpy(pins, &mxconfig.gpio, sizeof(mxconfig.gpio));
-  PinManager::allocateMultiplePins(pins, PIN_COUNT, PinOwner::HUB75, true);
+  if (!PinManager::allocateMultiplePins(pins, PIN_COUNT, PinOwner::HUB75, true)) {
+    DEBUGBUS_PRINTLN("Failed to allocate pins for HUB75");
+    return;
+  }
 
   if(bc.colorOrder == COL_ORDER_RGB) {
     DEBUGBUS_PRINTLN("MatrixPanel_I2S_DMA = Default color order (RGB)");
