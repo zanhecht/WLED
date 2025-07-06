@@ -94,13 +94,6 @@ namespace PinManager {
   [[deprecated("Replaced by two-parameter deallocatePin(gpio, ownerTag), for improved debugging")]]
   inline void deallocatePin(byte gpio) { deallocatePin(gpio, PinOwner::None); }
 
-    // De-allocates multiple pins but only if all can be deallocated (PinOwner has to be specified)
-   bool deallocateMultiplePins(const uint8_t *pinArray, byte arrayElementCount, PinOwner tag);
-   bool deallocateMultiplePins(const managed_pin_type *pinArray, byte arrayElementCount, PinOwner tag);
-
-   bool allocateMultiplePins(const managed_pin_type * mptArray, byte arrayElementCount, PinOwner tag );
-   bool allocateMultiplePins(const int8_t * mptArray, byte arrayElementCount, PinOwner tag, boolean output);
-
   // will return true for reserved pins
   bool isPinAllocated(byte gpio, PinOwner tag = PinOwner::None);
   // will return false for reserved pins
