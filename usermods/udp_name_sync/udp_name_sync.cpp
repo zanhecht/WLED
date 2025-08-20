@@ -1,0 +1,79 @@
+#include "wled.h"
+
+class UdpNameSync : public Usermod {
+
+  private:
+
+    bool enabled = false;
+    bool initDone = false;
+    unsigned long lastTime = 0;
+    char segmentName[WLED_MAX_SEGNAME_LEN] = {0};
+    static const char _name[];
+    static const char _enabled[];
+
+  public:
+    /**
+     * Enable/Disable the usermod
+     */
+    inline void enable(bool enable) { enabled = enable; }
+
+    /**
+     * Get usermod enabled/disabled state
+     */
+    inline bool isEnabled() { return enabled; }
+
+    void setup() override {
+      initDone = true;
+    }
+
+    void loop() override {
+      if (!WLED_CONNECTED) return;
+      if (!udpConnected) return;
+      Segment& mainseg = strip.getMainSegment();
+      if (!strlen(segmentName) && !mainseg.name) return; //name was never set, do nothing
+
+      IPAddress broadcastIp = ~uint32_t(Network.subnetMask()) | uint32_t(Network.gatewayIP());
+      byte udpOut[WLED_MAX_SEGNAME_LEN + 2];
+      udpOut[0] = 2; // 0: wled notifier protocol, 1: warls protocol, 2 is free
+      
+      if (strlen(segmentName) && !mainseg.name) { //name is back to null
+	notifierUdp.beginPacket(broadcastIp, udpPort);
+	strcpy(segmentName,"");
+	DEBUG_PRINTLN(F("UdpNameSync: sending Null name"));
+	notifierUdp.write( udpOut , 2);
+	notifierUdp.endPacket();
+	return;
+      }
+
+      if (0 == strcmp(mainseg.name, segmentName)) return; //same name, do nothing
+
+      notifierUdp.beginPacket(broadcastIp, udpPort);
+      DEBUG_PRINT(F("UdpNameSync: saving segment name "));
+      DEBUG_PRINTLN(mainseg.name);
+      byte length = strlen(mainseg.name);
+      strlcpy(segmentName, mainseg.name, length+1);
+      strlcpy((char *)&udpOut[1], segmentName, length+1);
+      notifierUdp.write(udpOut, length + 2);
+      notifierUdp.endPacket();
+      DEBUG_PRINT(F("UdpNameSync: Sent segment name : "));
+      DEBUG_PRINTLN(segmentName);
+    }
+
+    bool onUdpPacket(uint8_t * payload, uint8_t len) override {
+      DEBUG_PRINT(F("UdpNameSync: Received packet"));
+      if (payload[0] != 2) return false;
+      //else
+      Segment& mainseg = strip.getMainSegment();
+      mainseg.setName((char *)&payload[1]);
+      DEBUG_PRINT(F("UdpNameSync: set segment name"));
+      return true;
+    }
+};
+
+
+// add more strings here to reduce flash memory usage
+const char UdpNameSync::_name[]    PROGMEM = "UdpNameSync";
+const char UdpNameSync::_enabled[] PROGMEM = "enabled";
+
+static UdpNameSync udp_name_sync;
+REGISTER_USERMOD(udp_name_sync);
