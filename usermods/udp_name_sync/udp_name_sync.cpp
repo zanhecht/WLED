@@ -45,15 +45,16 @@ class UdpNameSync : public Usermod {
 	return;
       }
 
-      if (0 == strcmp(mainseg.name, segmentName)) return; //same name, do nothing
+      const char* curName = mainseg.name ? mainseg.name : "";
+      if (strcmp(curName, segmentName) == 0) return; // same name, do nothing
 
       notifierUdp.beginPacket(broadcastIp, udpPort);
       DEBUG_PRINT(F("UdpNameSync: saving segment name "));
       DEBUG_PRINTLN(mainseg.name);
-      byte length = strlen(mainseg.name);
-      strlcpy(segmentName, mainseg.name, length+1);
-      strlcpy((char *)&udpOut[1], segmentName, length+1);
-      notifierUdp.write(udpOut, length + 2);
+      size_t length = strlen(mainseg.name);
+      strlcpy(segmentName, mainseg.name, sizeof(segmentName));
+      strlcpy((char *)&udpOut[1], segmentName, sizeof(udpOut) - 1); // leave room for header byte
+      notifierUdp.write(udpOut, 2 + strnlen((char *)&udpOut[1], sizeof(udpOut) - 1));
       notifierUdp.endPacket();
       DEBUG_PRINT(F("UdpNameSync: Sent segment name : "));
       DEBUG_PRINTLN(segmentName);
