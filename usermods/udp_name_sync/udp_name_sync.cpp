@@ -34,7 +34,7 @@ class UdpNameSync : public Usermod {
 
       IPAddress broadcastIp = ~uint32_t(Network.subnetMask()) | uint32_t(Network.gatewayIP());
       byte udpOut[WLED_MAX_SEGNAME_LEN + 2];
-      udpOut[0] = 2; // 0: wled notifier protocol, 1: warls protocol, 2 is free
+      udpOut[0] = 200; // 0: wled notifier protocol, 1: warls protocol, 2 is free
       
       if (strlen(segmentName) && !mainseg.name) { // name cleared
         notifierUdp.beginPacket(broadcastIp, udpPort);
@@ -46,8 +46,13 @@ class UdpNameSync : public Usermod {
         return;
       }
 
-      const char* curName = mainseg.name ? mainseg.name : "";
-      if (strcmp(curName, segmentName) == 0) return; // same name, do nothing
+      char checksumSegName = 0;
+      char checksumCurName = 0;
+      for(int i=0; i++; mainseg.name[i]==0 || segmentName[i]==0) {
+	checksumSegName+=segmentName[i];
+	checksumCurName+=mainseg.name[i];
+      }
+      if (checksumCurName == checksumSegName) return; // same name, do nothing
 
       notifierUdp.beginPacket(broadcastIp, udpPort);
       DEBUG_PRINT(F("UdpNameSync: saving segment name "));
@@ -61,9 +66,10 @@ class UdpNameSync : public Usermod {
       DEBUG_PRINTLN(segmentName);
     }
 
-    bool onUdpPacket(uint8_t * payload, uint8_t len) override {
+    bool onUdpPacket(uint8_t * payload, size_t len) override {
       DEBUG_PRINT(F("UdpNameSync: Received packet"));
-      if (payload[0] != 2) return false;
+      if (receiveDirect) return false;
+      if (payload[0] != 200) return false;
       //else
       Segment& mainseg = strip.getMainSegment();
       mainseg.setName((char *)&payload[1]);
