@@ -36,13 +36,14 @@ class UdpNameSync : public Usermod {
       byte udpOut[WLED_MAX_SEGNAME_LEN + 2];
       udpOut[0] = 2; // 0: wled notifier protocol, 1: warls protocol, 2 is free
       
-      if (strlen(segmentName) && !mainseg.name) { //name is back to null
-	notifierUdp.beginPacket(broadcastIp, udpPort);
-	strcpy(segmentName,"");
-	DEBUG_PRINTLN(F("UdpNameSync: sending Null name"));
-	notifierUdp.write( udpOut , 2);
-	notifierUdp.endPacket();
-	return;
+      if (strlen(segmentName) && !mainseg.name) { // name cleared
+        notifierUdp.beginPacket(broadcastIp, udpPort);
+        segmentName[0] = '\0';
+        DEBUG_PRINTLN(F("UdpNameSync: sending empty name"));
+        udpOut[1] = 0; // explicit empty string
+        notifierUdp.write(udpOut, 2);
+        notifierUdp.endPacket();
+        return;
       }
 
       const char* curName = mainseg.name ? mainseg.name : "";
