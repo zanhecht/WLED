@@ -46,13 +46,8 @@ class UdpNameSync : public Usermod {
         return;
       }
 
-      char checksumSegName = 0;
-      char checksumCurName = 0;
-      for(int i=0; i++; mainseg.name[i]==0 || segmentName[i]==0) {
-	checksumSegName+=segmentName[i];
-	checksumCurName+=mainseg.name[i];
-      }
-      if (checksumCurName == checksumSegName) return; // same name, do nothing
+      const char* curName = mainseg.name ? mainseg.name : "";
+      if (strncmp(curName, segmentName, sizeof(segmentName)) == 0) return; // same name, do nothing
 
       notifierUdp.beginPacket(broadcastIp, udpPort);
       DEBUG_PRINT(F("UdpNameSync: saving segment name "));
