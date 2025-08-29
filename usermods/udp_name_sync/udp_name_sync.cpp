@@ -6,6 +6,7 @@ class UdpNameSync : public Usermod {
 
     bool enabled = false;
     char segmentName[WLED_MAX_SEGNAME_LEN] = {0};
+    static constexpr uint8_t kPacketType = 200; // custom usermod packet type
     static const char _name[];
     static const char _enabled[];
 
@@ -21,9 +22,11 @@ class UdpNameSync : public Usermod {
     inline bool isEnabled() const { return enabled; }
 
     void setup() override {
+      enable(true);
     }
 
     void loop() override {
+      if (!enabled) return;
       if (!WLED_CONNECTED) return;
       if (!udpConnected) return;
       Segment& mainseg = strip.getMainSegment();
@@ -31,7 +34,7 @@ class UdpNameSync : public Usermod {
 
       IPAddress broadcastIp = uint32_t(Network.localIP()) | ~uint32_t(Network.subnetMask());
       byte udpOut[WLED_MAX_SEGNAME_LEN + 2];
-      udpOut[0] = 200; // custom usermod packet type (avoid 0..5 used by core protocols)  
+      udpOut[0] = kPacketType; // custom usermod packet type (avoid 0..5 used by core protocols)  
       if (strlen(segmentName) && !mainseg.name) { // name cleared
         notifierUdp.beginPacket(broadcastIp, udpPort);
         segmentName[0] = '\0';
@@ -48,6 +51,7 @@ class UdpNameSync : public Usermod {
       notifierUdp.beginPacket(broadcastIp, udpPort);
       DEBUG_PRINT(F("UdpNameSync: saving segment name "));
       DEBUG_PRINTLN(mainseg.name);
+      DEBUG_PRINTLN(curName);
       strlcpy(segmentName, mainseg.name, sizeof(segmentName));
       strlcpy((char *)&udpOut[1], segmentName, sizeof(udpOut) - 1); // leave room for header byte
       notifierUdp.write(udpOut, 2 + strnlen((char *)&udpOut[1], sizeof(udpOut) - 1));
@@ -58,14 +62,20 @@ class UdpNameSync : public Usermod {
 
     bool onUdpPacket(uint8_t * payload, size_t len) override {
       DEBUG_PRINT(F("UdpNameSync: Received packet"));
+      if (!enabled) return false;
       if (receiveDirect) return false;
-      if (payload[0] != 200) return false;
-      //else
+      if (len < 2) return false;                 // need type + at least 1 byte for name (can be 0)
+      if (payload[0] != kPacketType) return false;
       Segment& mainseg = strip.getMainSegment();
-      mainseg.setName((char *)&payload[1]);
+      char tmp[WLED_MAX_SEGNAME_LEN] = {0};
+      size_t copyLen = len - 1;
+      if (copyLen > sizeof(tmp) - 1) copyLen = sizeof(tmp) - 1;
+      memcpy(tmp, &payload[1], copyLen);
+      tmp[copyLen] = '\0';
+      mainseg.setName(tmp);
       DEBUG_PRINT(F("UdpNameSync: set segment name"));
       return true;
-    }
+     }
 };
 
 
