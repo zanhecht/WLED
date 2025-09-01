@@ -743,8 +743,8 @@ static volatile uint32_t& bl_last_boottime = *(RTC_USER_MEM + 32);
 static volatile uint32_t& bl_crashcounter = *(RTC_USER_MEM + 33);
 static volatile uint32_t& bl_actiontracker = *(RTC_USER_MEM + 34);
 
-static inline ResetReason rebootReason() {  
-  uint32_t resetReason = system_get_rst_info()->reason; 
+static inline ResetReason rebootReason() {
+  uint32_t resetReason = system_get_rst_info()->reason;
   if (resetReason == REASON_EXCEPTION_RST
       || resetReason == REASON_WDT_RST
       || resetReason == REASON_SOFT_WDT_RST)
@@ -771,7 +771,7 @@ static inline ResetReason rebootReason() {
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
-static inline uint32_t getRtcMillis() { return esp_rtc_get_time_us() / 1000;  }
+static inline uint32_t getRtcMillis() { return esp_rtc_get_time_us() / 1000; }
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(3, 3, 0)
 static inline uint32_t getRtcMillis() { return rtc_time_slowclk_to_us(rtc_time_get(), rtc_clk_slow_freq_get_hz()) / 1000; }
 #endif
@@ -785,7 +785,7 @@ static bool detectBootLoop() {
   uint32_t rtctime = getRtcMillis();
   bool result = false;
 
-  switch(rebootReason()) {    
+  switch(rebootReason()) {
     case ResetReason::Power:
       bl_actiontracker = BOOTLOOP_ACTION_RESTORE; // init action tracker if not an intentional reboot (e.g. from OTA or bootloop handler)
       // fall through
@@ -796,6 +796,7 @@ static bool detectBootLoop() {
 
     case ResetReason::Crash:
     {
+      DEBUG_PRINTLN(F("crash detected!"));
       uint32_t rebootinterval = rtctime - bl_last_boottime;
       if (rebootinterval < BOOTLOOP_INTERVAL_MILLIS) {
         bl_crashcounter++;
@@ -808,17 +809,17 @@ static bool detectBootLoop() {
         // Reset counter on long intervals to track only consecutive short-interval crashes
         bl_crashcounter = 0;
         // TODO: crash reporting goes here
-      }        
+      }
       break;
     }
-    
+
     case ResetReason::Brownout:
       // crash due to brownout can't be detected unless using flash memory to store bootloop variables
       DEBUG_PRINTLN(F("brownout detected"));
       //restoreConfig(); // TODO: blindly restoring config if brownout detected is a bad idea, need a better way (if at all)
       break;
   }
-  
+
   bl_last_boottime = rtctime; // store current runtime for next reboot
 
   return result;
