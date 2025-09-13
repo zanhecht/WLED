@@ -1126,9 +1126,11 @@ std::vector<LEDType> BusHub75Matrix::getLEDTypes() {
 }
 
 size_t BusHub75Matrix::getPins(uint8_t* pinArray) const {
-  pinArray[0] = mxconfig.mx_width;
-  pinArray[1] = mxconfig.mx_height;
-  pinArray[2] = mxconfig.chain_length;
+  if (pinArray) {
+    pinArray[0] = mxconfig.mx_width;
+    pinArray[1] = mxconfig.mx_height;
+    pinArray[2] = mxconfig.chain_length;
+  }
   return 3;
 }
 
