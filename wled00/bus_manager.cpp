@@ -1056,7 +1056,7 @@ uint32_t BusHub75Matrix::getPixelColor(unsigned pix) const {
 
 void BusHub75Matrix::setBrightness(uint8_t b) {
   _bri = b;
-  display->setBrightness(_bri);
+  if (display) display->setBrightness(_bri);
 }
 
 void BusHub75Matrix::show(void) {
