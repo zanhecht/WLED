@@ -34,7 +34,7 @@ Originally created by [Aircoookie](https://github.com/Aircoookie)
 - Filesystem-based config for easier backup of presets and settings  
 
 ## 💡 Supported light control interfaces
-- WLED app for [Android](https://play.google.com/store/apps/details?id=com.aircoookie.WLED) and [iOS](https://apps.apple.com/us/app/wled/id1475695033)
+- WLED app for [Android](https://play.google.com/store/apps/details?id=ca.cgagnier.wlednativeandroid) and [iOS](https://apps.apple.com/gb/app/wled-native/id6446207239)
 - JSON and HTTP request APIs  
 - MQTT   
 - E1.31, Art-Net, DDP and TPM2.net
