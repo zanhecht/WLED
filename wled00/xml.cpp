@@ -335,7 +335,7 @@ void getSettingsJS(byte subPage, Print& settingsScript)
       int nPins = bus->getPins(pins);
       for (int i = 0; i < nPins; i++) {
         lp[1] = '0'+i;
-        if (PinManager::isPinOk(pins[i]) || bus->isVirtual()) printSetFormValue(settingsScript,lp,pins[i]);
+        if (PinManager::isPinOk(pins[i]) || bus->isVirtual() || BusManager::isHub75(bus->getType())) printSetFormValue(settingsScript,lp,pins[i]);
       }
       printSetFormValue(settingsScript,lc,bus->getLength());
       printSetFormValue(settingsScript,lt,bus->getType());
@@ -692,9 +692,6 @@ void getSettingsJS(byte subPage, Print& settingsScript)
       printSetFormValue(settingsScript,PSTR("MPC"),strip.panel.size());
       // panels
       for (unsigned i=0; i<strip.panel.size(); i++) {
-        // Set generator fields to match current panel before adding it to ensure correct initial values
-        printSetFormValue(settingsScript,PSTR("PW"),strip.panel[i].width);
-        printSetFormValue(settingsScript,PSTR("PH"),strip.panel[i].height);
         settingsScript.printf_P(PSTR("addPanel(%d);"), i);
         char pO[8] = { '\0' };
         snprintf_P(pO, 7, PSTR("P%d"), i);       // WLED_WLED_MAX_PANELS is less than 100 so pO will always only be 4 characters or less
