@@ -812,14 +812,15 @@ BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.
   virtualDisp = nullptr;
 
   if (bc.type == TYPE_HUB75MATRIX_HS) {
-      mxconfig.mx_width = min((u_int8_t) 64, bc.pins[0]);
-      mxconfig.mx_height = min((u_int8_t) 64, bc.pins[1]);
-      if(bc.pins[2] > 1 &&  bc.pins[3] > 0 &&  bc.pins[4]) {
-        virtualDisp = new VirtualMatrixPanel((*display), bc.pins[3], bc.pins[4], mxconfig.mx_width, mxconfig.mx_height, CHAIN_BOTTOM_LEFT_UP);
-      }
+      mxconfig.mx_width = min((uint8_t) 64, bc.pins[0]);
+      mxconfig.mx_height = min((uint8_t) 64, bc.pins[1]);
+    // Disable chains of panels for now, incomplete UI changes
+      // if(bc.pins[2] > 1 &&  bc.pins[3] != 0 &&  bc.pins[4] != 0 &&  bc.pins[3] != 255 &&  bc.pins[4] != 255) {
+      //   virtualDisp = new VirtualMatrixPanel((*display), bc.pins[3], bc.pins[4], mxconfig.mx_width, mxconfig.mx_height, CHAIN_BOTTOM_LEFT_UP);
+      // }
   } else if (bc.type == TYPE_HUB75MATRIX_QS) {
-      mxconfig.mx_width = min((u_int8_t) 64, bc.pins[0]) * 2;
-      mxconfig.mx_height = min((u_int8_t) 64, bc.pins[1]) / 2;
+      mxconfig.mx_width = min((uint8_t) 64, bc.pins[0]) * 2;
+      mxconfig.mx_height = min((uint8_t) 64, bc.pins[1]) / 2;
       virtualDisp = new VirtualMatrixPanel((*display), 1, 1, bc.pins[0], bc.pins[1]);
       virtualDisp->setRotation(0);
       switch(bc.pins[1]) {
@@ -849,7 +850,7 @@ BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.
   } else mxconfig.setPixelColorDepthBits(8);
 #endif
 
-  mxconfig.chain_length = max((u_int8_t) 1, min(bc.pins[2], (u_int8_t) 4)); // prevent bad data preventing boot due to low memory
+  mxconfig.chain_length = max((uint8_t) 1, min(bc.pins[2], (uint8_t) 4)); // prevent bad data preventing boot due to low memory
 
   if(mxconfig.mx_height >= 64 && (mxconfig.chain_length > 1)) {
     DEBUGBUS_PRINTLN("WARNING, only single panel can be used of 64 pixel boards due to memory");
@@ -996,7 +997,6 @@ BusHub75Matrix::BusHub75Matrix(const BusConfig &bc) : Bus(bc.type, bc.start, bc.
   DEBUGBUS_PRINT(F("MatrixPanel_I2S_DMA "));
   DEBUGBUS_PRINTF("%sstarted, width=%u, %u pixels.\n", _valid? "":"not ", _panelWidth, _len);
 
-  if (mxconfig.double_buff == true) DEBUGBUS_PRINTLN(F("MatrixPanel_I2S_DMA driver native double-buffering enabled."));
   if (_ledBuffer != nullptr) DEBUGBUS_PRINTLN(F("MatrixPanel_I2S_DMA LEDS buffer enabled."));
   if (_ledsDirty != nullptr) DEBUGBUS_PRINTLN(F("MatrixPanel_I2S_DMA LEDS dirty bit optimization enabled."));
   if ((_ledBuffer != nullptr) || (_ledsDirty != nullptr)) {
@@ -1021,9 +1021,6 @@ void __attribute__((hot)) BusHub75Matrix::setPixelColor(unsigned pix, uint32_t c
     if ((c == IS_BLACK) && (getBitFromArray(_ledsDirty, pix) == false)) return; // ignore black if pixel is already black
     setBitInArray(_ledsDirty, pix, c != IS_BLACK);                              // dirty = true means "color is not BLACK"
 
-    #ifndef NO_CIE1931
-    c = unGamma24(c); // to use the driver linear brightness feature, we first need to undo WLED gamma correction
-    #endif
     uint8_t r = R(c);
     uint8_t g = G(c);
     uint8_t b = B(c);
@@ -1069,9 +1066,6 @@ void BusHub75Matrix::show(void) {
     for (int y=0; y<height; y++) for (int x=0; x<width; x++) {
       if (getBitFromArray(_ledsDirty, pix) == true) {        // only repaint the "dirty"  pixels
         uint32_t c = uint32_t(_ledBuffer[pix]) & 0x00FFFFFF; // get RGB color, removing FastLED "alpha" component
-        #ifndef NO_CIE1931
-        c = unGamma24(c); // to use the driver linear brightness feature, we first need to undo WLED gamma correction
-        #endif
         uint8_t r = R(c);
         uint8_t g = G(c);
         uint8_t b = B(c);
@@ -1081,13 +1075,6 @@ void BusHub75Matrix::show(void) {
       pix ++;
     }
     setBitArray(_ledsDirty, _len, false);  // buffer shown - reset all dirty bits
-  }
-
-  if(mxconfig.double_buff) {
-    display->flipDMABuffer(); // Show the back buffer, set current output buffer to the back (i.e. no longer being sent to LED panels)
-    // while(!previousBufferFree) delay(1);   // experimental - Wait before we allow any writing to the buffer. Stop flicker.
-    display->clearScreen();   // Now clear the back-buffer
-    setBitArray(_ledsDirty, _len, false);  // dislay buffer is blank - reset all dirty bits
   }
 }
 
