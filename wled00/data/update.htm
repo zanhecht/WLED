@@ -18,6 +18,8 @@
 			window.open(getURL("/update?revert"),"_self");
 		}
 		function GetV() {/*injected values here*/}
+	</script>
+	<script>
 		var isESP32 = false;
 		function checkESP32() {
 			fetch(getURL('/json/info')).then(r=>r.json()).then(d=>{
