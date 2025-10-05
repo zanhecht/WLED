@@ -211,7 +211,7 @@ static void calculateBootloaderSHA256() {
   uint8_t buffer[chunkSize];
   
   for (uint32_t offset = 0; offset < bootloaderSize; offset += chunkSize) {
-    size_t readSize = min(chunkSize, bootloaderSize - offset);
+    size_t readSize = min((size_t)(bootloaderSize - offset), chunkSize);
     if (esp_flash_read(NULL, buffer, bootloaderOffset + offset, readSize) == ESP_OK) {
       mbedtls_sha256_update(&ctx, buffer, readSize);
     }
