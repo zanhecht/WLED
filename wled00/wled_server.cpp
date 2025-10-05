@@ -18,6 +18,7 @@
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
   #include <esp_partition.h>
   #include <esp_ota_ops.h>
+  #include <esp_flash.h>
   #include <bootloader_common.h>
   #include <mbedtls/sha256.h>
 #endif
