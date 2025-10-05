@@ -40,7 +40,7 @@ The build has two main phases:
 
 2. **Build at least one hardware environment**: `pio run -e esp32dev` -- Set timeout to 30+ minutes. NEVER CANCEL.
    - Choose `esp32dev` as it's a common, representative environment
-   - Alternative environments if needed: `nodemcuv2` (ESP8266) or `esp8266_2m`
+   - See "Hardware Compilation" section above for the full list of common environments
    - The build MUST complete successfully without errors
    - If the build fails, fix the issue before proceeding
    - **DO NOT skip this step** - it validates that firmware compiles with your changes
@@ -166,7 +166,7 @@ package.json           # Node.js dependencies and scripts
 
 **To ensure CI success, you MUST locally:**
 - Run `npm test` and ensure it passes
-- Run `pio run -e esp32dev` (or another common environment) and ensure it completes successfully
+- Run `pio run -e esp32dev` (or another common environment from "Hardware Compilation" section) and ensure it completes successfully
 - If either fails locally, it WILL fail in CI
 
 **Match this workflow in your local development to ensure CI success. Do not mark work complete until you have validated builds locally.**
