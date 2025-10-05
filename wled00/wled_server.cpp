@@ -561,6 +561,11 @@ void initServer()
     }
     if (!correctPIN || otaLock) return;
     
+    static size_t bootloaderBytesWritten = 0;
+    static bool bootloaderErased = false;
+    const uint32_t bootloaderOffset = 0x1000;
+    const uint32_t maxBootloaderSize = 0x8000; // 32KB max
+    
     if (!index) {
       DEBUG_PRINTLN(F("Bootloader Update Start"));
       #if WLED_WATCHDOG_TIMEOUT > 0
@@ -569,36 +574,58 @@ void initServer()
       lastEditTime = millis(); // make sure PIN does not lock during update
       strip.suspend();
       strip.resetSegments();
+      bootloaderBytesWritten = 0;
+      bootloaderErased = false;
       
-      // Begin bootloader update - use U_FLASH and specify bootloader partition offset
-      if (!Update.begin(0x8000, U_FLASH, -1, 0x1000)) {
-        DEBUG_PRINTLN(F("Bootloader Update Begin Failed"));
-        Update.printError(Serial);
+      // Verify bootloader magic on first chunk
+      if (!isValidBootloader(data, len)) {
+        DEBUG_PRINTLN(F("Invalid bootloader file!"));
+        strip.resume();
+        #if WLED_WATCHDOG_TIMEOUT > 0
+        WLED::instance().enableWatchdog();
+        #endif
+        Update.abort();
+        return;
       }
+      
+      // Erase bootloader region (32KB)
+      DEBUG_PRINTLN(F("Erasing bootloader region..."));
+      esp_err_t err = esp_flash_erase_region(NULL, bootloaderOffset, maxBootloaderSize);
+      if (err != ESP_OK) {
+        DEBUG_PRINTF_P(PSTR("Bootloader erase error: %d\n"), err);
+        strip.resume();
+        #if WLED_WATCHDOG_TIMEOUT > 0
+        WLED::instance().enableWatchdog();
+        #endif
+        Update.abort();
+        return;
+      }
+      bootloaderErased = true;
     }
     
-    // Verify bootloader magic on first chunk
-    if (index == 0 && !isValidBootloader(data, len)) {
-      DEBUG_PRINTLN(F("Invalid bootloader file!"));
+    // Write data to flash at bootloader offset
+    if (bootloaderErased && bootloaderBytesWritten + len <= maxBootloaderSize) {
+      esp_err_t err = esp_flash_write(NULL, data, bootloaderOffset + bootloaderBytesWritten, len);
+      if (err != ESP_OK) {
+        DEBUG_PRINTF_P(PSTR("Bootloader flash write error: %d\n"), err);
+        Update.abort();
+      } else {
+        bootloaderBytesWritten += len;
+      }
+    } else if (!bootloaderErased) {
+      DEBUG_PRINTLN(F("Bootloader region not erased!"));
       Update.abort();
-      strip.resume();
-      #if WLED_WATCHDOG_TIMEOUT > 0
-      WLED::instance().enableWatchdog();
-      #endif
-      return;
-    }
-    
-    if (!Update.hasError()) {
-      Update.write(data, len);
+    } else {
+      DEBUG_PRINTLN(F("Bootloader size exceeds maximum!"));
+      Update.abort();
     }
     
     if (isFinal) {
-      if (Update.end(true)) {
-        DEBUG_PRINTLN(F("Bootloader Update Success"));
+      if (!Update.hasError() && bootloaderBytesWritten > 0) {
+        DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written\n"), bootloaderBytesWritten);
         bootloaderSHA256Cached = false; // Invalidate cached bootloader hash
       } else {
         DEBUG_PRINTLN(F("Bootloader Update Failed"));
-        Update.printError(Serial);
         strip.resume();
         #if WLED_WATCHDOG_TIMEOUT > 0
         WLED::instance().enableWatchdog();
