@@ -219,7 +219,7 @@ static void calculateBootloaderSHA256() {
 }
 
 // Get bootloader SHA256 as hex string
-static String getBootloaderSHA256Hex() {
+String getBootloaderSHA256Hex() {
   calculateBootloaderSHA256();
   
   char hex[65];
