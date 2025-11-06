@@ -55,7 +55,7 @@ void drawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t
   if (activeSeg->height() == 1) {
     // 1D strip: load pixel-by-pixel left to right, top to bottom (0/0 = top-left in gifs), scale if needed
     int totalImgPix = (int)gifWidth * gifHeight;
-    int stripLen = activeSeg->width();
+    int stripLen = activeSeg->vWidth();
     if (totalImgPix - stripLen == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first
     int start =  ((int)y * gifWidth + (int)x) * stripLen / totalImgPix; // simple nearest-neighbor scaling
     int end   = (((int)y * gifWidth + (int)x+1) * stripLen + totalImgPix-1) / totalImgPix;
@@ -64,11 +64,11 @@ void drawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t
     }
   } else {
     // simple nearest-neighbor scaling
-    int outY = (int)y * activeSeg->height() / gifHeight;
-    int outX = (int)x * activeSeg->width()  / gifWidth;
+    int outY = (int)y * activeSeg->vHeight() / gifHeight;
+    int outX = (int)x * activeSeg->vWidth()  / gifWidth;
     // set multiple pixels if upscaling
-    for (int i = 0; i < (activeSeg->width()+(gifWidth-1)) / gifWidth; i++) {
-      for (int j = 0; j < (activeSeg->height()+(gifHeight-1)) / gifHeight; j++) {
+    for (int i = 0; i < (activeSeg->vWidth()+(gifWidth-1)) / gifWidth; i++) {
+      for (int j = 0; j < (activeSeg->vHeight()+(gifHeight-1)) / gifHeight; j++) {
         activeSeg->setPixelColorXY(outX + i, outY + j, red, green, blue);
       }
     }
