@@ -52,13 +52,25 @@ void screenClearCallback(void) {
 void updateScreenCallback(void) {}
 
 void drawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
-  // simple nearest-neighbor scaling 
-  int16_t outY = y * activeSeg->height() / gifHeight;
-  int16_t outX = x * activeSeg->width()  / gifWidth;
-  // set multiple pixels if upscaling
-  for (int16_t i = 0; i < (activeSeg->width()+(gifWidth-1)) / gifWidth; i++) {
-    for (int16_t j = 0; j < (activeSeg->height()+(gifHeight-1)) / gifHeight; j++) {
-      activeSeg->setPixelColorXY(outX + i, outY + j, red, green, blue);
+  if (activeSeg->height() == 1) {
+    // 1D strip: load pixel-by-pixel left to right, top to bottom (0/0 = top-left in gifs), scale if needed
+    int totalImgPix = (int)gifWidth * gifHeight;
+    int stripLen = activeSeg->width();
+    if (totalImgPix - stripLen == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first
+    int start =  ((int)y * gifWidth + (int)x) * stripLen / totalImgPix; // simple nearest-neighbor scaling
+    int end   = (((int)y * gifWidth + (int)x+1) * stripLen + totalImgPix-1) / totalImgPix;
+    for (int i = start; i < end; i++) {
+      activeSeg->setPixelColor(i, red, green, blue);
+    }
+  } else {
+    // simple nearest-neighbor scaling
+    int outY = (int)y * activeSeg->height() / gifHeight;
+    int outX = (int)x * activeSeg->width()  / gifWidth;
+    // set multiple pixels if upscaling
+    for (int i = 0; i < (activeSeg->width()+(gifWidth-1)) / gifWidth; i++) {
+      for (int j = 0; j < (activeSeg->height()+(gifHeight-1)) / gifHeight; j++) {
+        activeSeg->setPixelColorXY(outX + i, outY + j, red, green, blue);
+      }
     }
   }
 }
