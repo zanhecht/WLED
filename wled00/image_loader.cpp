@@ -63,7 +63,7 @@ void drawPixelCallbackNoScale(int16_t x, int16_t y, uint8_t red, uint8_t green, 
 void drawPixelCallback1D(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
   // 1D strip: load pixel-by-pixel left to right, top to bottom (0/0 = top-left in gifs)
   int totalImgPix = (int)gifWidth * gifHeight;
-  int start =  ((int)y * gifWidth + (int)x) * activeSeg->vWidth() / totalImgPix; // simple nearest-neighbor scaling
+  int start =  ((int)y * gifWidth + (int)x) * activeSeg->vLength() / totalImgPix; // simple nearest-neighbor scaling
   if (start == lastCoordinate) return; // skip setting same coordinate again
   lastCoordinate = start;
   for (int i = 0; i < perPixelX; i++) {
@@ -127,20 +127,20 @@ byte renderImageToSegment(Segment &seg) {
     DEBUG_PRINTLN(F("Starting decoding"));
     if(decoder.startDecoding() < 0) { gifDecodeFailed = true; return IMAGE_ERROR_GIF_DECODE; }
     DEBUG_PRINTLN(F("Decoding started"));
-    // after startDecoding, we can get GIF size, update static variables and callbacks if needed
+    // after startDecoding, we can get GIF size, update static variables and callbacks
     decoder.getSize(&gifWidth, &gifHeight);
-    if (activeSeg->height() == 1) {
-      int totalImgPix = (int)gifWidth * gifHeight;
-      if (totalImgPix - activeSeg->vWidth() == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first (gifs constructed from 1D input padds last pixel if length is odd)
-      perPixelX   = (activeSeg->vWidth() + totalImgPix-1) / totalImgPix;
-      if (totalImgPix != activeSeg->vWidth()) {
-        decoder.setDrawPixelCallback(drawPixelCallback1D); // use 1D callback with scaling
-      }
-    } else {
+    if (activeSeg->is2D()) {
       perPixelX   = (activeSeg->vWidth()  + gifWidth -1) / gifWidth;
       perPixelY   = (activeSeg->vHeight() + gifHeight-1) / gifHeight;
       if (activeSeg->vWidth() != gifWidth || activeSeg->vHeight() != gifHeight) {
         decoder.setDrawPixelCallback(drawPixelCallback2D); // use 2D callback with scaling
+      }
+    } else {
+      int totalImgPix = (int)gifWidth * gifHeight;
+      if (totalImgPix - activeSeg->vLength() == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first (gifs constructed from 1D input padds last pixel if length is odd)
+      perPixelX   = (activeSeg->vLength() + totalImgPix-1) / totalImgPix;
+      if (totalImgPix != activeSeg->vLength()) {
+        decoder.setDrawPixelCallback(drawPixelCallback1D); // use 1D callback with scaling
       }
     }
   }
