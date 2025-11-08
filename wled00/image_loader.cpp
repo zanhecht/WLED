@@ -9,11 +9,11 @@
  * Functions to render images from filesystem to segments, used by the "Image" effect
  */
 
-File file;
-char lastFilename[34] = "/";
-GifDecoder<320,320,12,true> decoder;
-bool gifDecodeFailed = false;
-unsigned long lastFrameDisplayTime = 0, currentFrameDelay = 0;
+static File file;
+static char lastFilename[34] = "/";
+static GifDecoder<320,320,12,true> decoder;
+static bool gifDecodeFailed = false;
+static unsigned long lastFrameDisplayTime = 0, currentFrameDelay = 0;
 
 bool fileSeekCallback(unsigned long position) {
   return file.seek(position);
@@ -42,10 +42,10 @@ bool openGif(const char *filename) {
   return true;
 }
 
-Segment* activeSeg;
-uint16_t gifWidth, gifHeight;
-int lastCoordinate; // last coordinate (x+y) that was set, used to reduce redundant pixel writes
-uint16_t perPixelX, perPixelY; // scaling factors when upscaling
+static Segment* activeSeg;
+static uint16_t gifWidth, gifHeight;
+static int lastCoordinate; // last coordinate (x+y) that was set, used to reduce redundant pixel writes
+static uint16_t perPixelX, perPixelY; // scaling factors when upscaling
 
 void screenClearCallback(void) {
   activeSeg->fill(0);
