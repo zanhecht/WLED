@@ -44,6 +44,8 @@ bool openGif(const char *filename) {
 
 Segment* activeSeg;
 uint16_t gifWidth, gifHeight;
+int lastCoordinate; // last coordinate (x+y) that was set, used to reduce redundant pixel writes
+uint16_t perPixelX, perPixelY; // scaling factors when upscaling
 
 void screenClearCallback(void) {
   activeSeg->fill(0);
@@ -51,26 +53,34 @@ void screenClearCallback(void) {
 
 void updateScreenCallback(void) {}
 
-void drawPixelCallback(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
-  if (activeSeg->height() == 1) {
-    // 1D strip: load pixel-by-pixel left to right, top to bottom (0/0 = top-left in gifs), scale if needed
-    int totalImgPix = (int)gifWidth * gifHeight;
-    int stripLen = activeSeg->vWidth();
-    if (totalImgPix - stripLen == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first
-    int start =  ((int)y * gifWidth + (int)x) * stripLen / totalImgPix; // simple nearest-neighbor scaling
-    int end   = (((int)y * gifWidth + (int)x+1) * stripLen + totalImgPix-1) / totalImgPix;
-    for (int i = start; i < end; i++) {
-      activeSeg->setPixelColor(i, red, green, blue);
-    }
-  } else {
-    // simple nearest-neighbor scaling
-    int outY = (int)y * activeSeg->vHeight() / gifHeight;
-    int outX = (int)x * activeSeg->vWidth()  / gifWidth;
-    // set multiple pixels if upscaling
-    for (int i = 0; i < (activeSeg->vWidth()+(gifWidth-1)) / gifWidth; i++) {
-      for (int j = 0; j < (activeSeg->vHeight()+(gifHeight-1)) / gifHeight; j++) {
-        activeSeg->setPixelColorXY(outX + i, outY + j, red, green, blue);
-      }
+// note: GifDecoder drawing is done top right to bottom left, line by line
+
+// callback to draw a pixel at (x,y) without scaling: used if GIF size matches segment size (faster)
+void drawPixelCallbackNoScale(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
+  activeSeg->setPixelColor(y * activeSeg->width() + x, red, green, blue);
+}
+
+void drawPixelCallback1D(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
+  // 1D strip: load pixel-by-pixel left to right, top to bottom (0/0 = top-left in gifs)
+  int totalImgPix = (int)gifWidth * gifHeight;
+  int start =  ((int)y * gifWidth + (int)x) * activeSeg->vWidth() / totalImgPix; // simple nearest-neighbor scaling
+  if (start == lastCoordinate) return; // skip setting same coordinate again
+  lastCoordinate = start;
+  for (int i = 0; i < perPixelX; i++) {
+    activeSeg->setPixelColor(start + i, red, green, blue);
+  }
+}
+
+void drawPixelCallback2D(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
+  // simple nearest-neighbor scaling
+  int outY = (int)y * activeSeg->vHeight() / gifHeight;
+  int outX = (int)x * activeSeg->vWidth()  / gifWidth;
+  if (outX + outY == lastCoordinate) return; // skip setting same coordinate again
+  lastCoordinate = outX + outY; // since input is a "scanline" this is sufficient to identify a "unique" coordinate
+  // set multiple pixels if upscaling
+  for (int i = 0; i < perPixelX; i++) {
+    for (int j = 0; j < perPixelY; j++) {
+      activeSeg->setPixelColorXY(outX + i, outY + j, red, green, blue);
     }
   }
 }
@@ -104,9 +114,10 @@ byte renderImageToSegment(Segment &seg) {
     if (file) file.close();
     openGif(lastFilename);
     if (!file) { gifDecodeFailed = true; return IMAGE_ERROR_FILE_MISSING; }
+    lastCoordinate = -1;
     decoder.setScreenClearCallback(screenClearCallback);
     decoder.setUpdateScreenCallback(updateScreenCallback);
-    decoder.setDrawPixelCallback(drawPixelCallback);
+    decoder.setDrawPixelCallback(drawPixelCallbackNoScale);
     decoder.setFileSeekCallback(fileSeekCallback);
     decoder.setFilePositionCallback(filePositionCallback);
     decoder.setFileReadCallback(fileReadCallback);
@@ -116,6 +127,22 @@ byte renderImageToSegment(Segment &seg) {
     DEBUG_PRINTLN(F("Starting decoding"));
     if(decoder.startDecoding() < 0) { gifDecodeFailed = true; return IMAGE_ERROR_GIF_DECODE; }
     DEBUG_PRINTLN(F("Decoding started"));
+    // after startDecoding, we can get GIF size, update static variables and callbacks if needed
+    decoder.getSize(&gifWidth, &gifHeight);
+    if (activeSeg->height() == 1) {
+      int totalImgPix = (int)gifWidth * gifHeight;
+      if (totalImgPix - activeSeg->vWidth() == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first (gifs constructed from 1D input padds last pixel if length is odd)
+      perPixelX   = (activeSeg->vWidth() + totalImgPix-1) / totalImgPix;
+      if (totalImgPix != activeSeg->vWidth()) {
+        decoder.setDrawPixelCallback(drawPixelCallback1D); // use 1D callback with scaling
+      }
+    } else {
+      perPixelX   = (activeSeg->vWidth()  + gifWidth -1) / gifWidth;
+      perPixelY   = (activeSeg->vHeight() + gifHeight-1) / gifHeight;
+      if (activeSeg->vWidth() != gifWidth || activeSeg->vHeight() != gifHeight) {
+        decoder.setDrawPixelCallback(drawPixelCallback2D); // use 2D callback with scaling
+      }
+    }
   }
 
   if (gifDecodeFailed) return IMAGE_ERROR_PREV;
@@ -128,8 +155,6 @@ byte renderImageToSegment(Segment &seg) {
 
   // TODO consider handling this on FX level with a different frametime, but that would cause slow gifs to speed up during transitions
   if (millis() - lastFrameDisplayTime < wait) return IMAGE_ERROR_WAITING;
-
-  decoder.getSize(&gifWidth, &gifHeight);
 
   int result = decoder.decodeFrame(false);
   if (result < 0) { gifDecodeFailed = true; return IMAGE_ERROR_FRAME_DECODE; }
