@@ -561,25 +561,42 @@ void initServer()
     }
     if (!correctPIN || otaLock) return;
     
-    static size_t bootloaderBytesWritten = 0;
-    static bool bootloaderErased = false;
+    static uint8_t* bootloaderBuffer = nullptr;
+    static size_t bootloaderBytesBuffered = 0;
     const uint32_t bootloaderOffset = 0x1000;
     const uint32_t maxBootloaderSize = 0x8000; // 32KB max
     
     if (!index) {
-      DEBUG_PRINTLN(F("Bootloader Update Start"));
+      DEBUG_PRINTLN(F("Bootloader Update Start - buffering data"));
       #if WLED_WATCHDOG_TIMEOUT > 0
       WLED::instance().disableWatchdog();
       #endif
       lastEditTime = millis(); // make sure PIN does not lock during update
       strip.suspend();
       strip.resetSegments();
-      bootloaderBytesWritten = 0;
-      bootloaderErased = false;
+      
+      // Allocate buffer for entire bootloader
+      if (bootloaderBuffer) {
+        free(bootloaderBuffer);
+        bootloaderBuffer = nullptr;
+      }
+      bootloaderBuffer = (uint8_t*)malloc(maxBootloaderSize);
+      if (!bootloaderBuffer) {
+        DEBUG_PRINTLN(F("Failed to allocate bootloader buffer!"));
+        strip.resume();
+        #if WLED_WATCHDOG_TIMEOUT > 0
+        WLED::instance().enableWatchdog();
+        #endif
+        Update.abort();
+        return;
+      }
+      bootloaderBytesBuffered = 0;
       
       // Verify bootloader magic on first chunk
       if (!isValidBootloader(data, len)) {
         DEBUG_PRINTLN(F("Invalid bootloader file!"));
+        free(bootloaderBuffer);
+        bootloaderBuffer = nullptr;
         strip.resume();
         #if WLED_WATCHDOG_TIMEOUT > 0
         WLED::instance().enableWatchdog();
@@ -587,44 +604,56 @@ void initServer()
         Update.abort();
         return;
       }
-      
-      // Erase bootloader region (32KB)
-      DEBUG_PRINTLN(F("Erasing bootloader region..."));
-      esp_err_t err = esp_flash_erase_region(NULL, bootloaderOffset, maxBootloaderSize);
-      if (err != ESP_OK) {
-        DEBUG_PRINTF_P(PSTR("Bootloader erase error: %d\n"), err);
-        strip.resume();
-        #if WLED_WATCHDOG_TIMEOUT > 0
-        WLED::instance().enableWatchdog();
-        #endif
-        Update.abort();
-        return;
-      }
-      bootloaderErased = true;
     }
     
-    // Write data to flash at bootloader offset
-    if (bootloaderErased && bootloaderBytesWritten + len <= maxBootloaderSize) {
-      esp_err_t err = esp_flash_write(NULL, data, bootloaderOffset + bootloaderBytesWritten, len);
-      if (err != ESP_OK) {
-        DEBUG_PRINTF_P(PSTR("Bootloader flash write error: %d\n"), err);
-        Update.abort();
-      } else {
-        bootloaderBytesWritten += len;
-      }
-    } else if (!bootloaderErased) {
-      DEBUG_PRINTLN(F("Bootloader region not erased!"));
+    // Buffer the incoming data
+    if (bootloaderBuffer && bootloaderBytesBuffered + len <= maxBootloaderSize) {
+      memcpy(bootloaderBuffer + bootloaderBytesBuffered, data, len);
+      bootloaderBytesBuffered += len;
+    } else if (!bootloaderBuffer) {
+      DEBUG_PRINTLN(F("Bootloader buffer not allocated!"));
       Update.abort();
     } else {
       DEBUG_PRINTLN(F("Bootloader size exceeds maximum!"));
+      if (bootloaderBuffer) {
+        free(bootloaderBuffer);
+        bootloaderBuffer = nullptr;
+      }
       Update.abort();
     }
     
+    // Only write to flash when upload is complete
     if (isFinal) {
-      if (!Update.hasError() && bootloaderBytesWritten > 0) {
-        DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written\n"), bootloaderBytesWritten);
-        bootloaderSHA256Cached = false; // Invalidate cached bootloader hash
-      } else {
+      bool success = false;
+      if (!Update.hasError() && bootloaderBuffer && bootloaderBytesBuffered > 0) {
+        DEBUG_PRINTF_P(PSTR("Bootloader buffered (%d bytes) - writing to flash\n"), bootloaderBytesBuffered);
+        
+        // Erase bootloader region
+        DEBUG_PRINTLN(F("Erasing bootloader region..."));
+        esp_err_t err = esp_flash_erase_region(NULL, bootloaderOffset, maxBootloaderSize);
+        if (err != ESP_OK) {
+          DEBUG_PRINTF_P(PSTR("Bootloader erase error: %d\n"), err);
+        } else {
+          // Write buffered data to flash
+          err = esp_flash_write(NULL, bootloaderBuffer, bootloaderOffset, bootloaderBytesBuffered);
+          if (err != ESP_OK) {
+            DEBUG_PRINTF_P(PSTR("Bootloader flash write error: %d\n"), err);
+          } else {
+            DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written\n"), bootloaderBytesBuffered);
+            bootloaderSHA256Cached = false; // Invalidate cached bootloader hash
+            success = true;
+          }
+        }
+      }
+      
+      // Cleanup
+      if (bootloaderBuffer) {
+        free(bootloaderBuffer);
+        bootloaderBuffer = nullptr;
+      }
+      bootloaderBytesBuffered = 0;
+      
+      if (!success) {
         DEBUG_PRINTLN(F("Bootloader Update Failed"));
         strip.resume();
         #if WLED_WATCHDOG_TIMEOUT > 0
