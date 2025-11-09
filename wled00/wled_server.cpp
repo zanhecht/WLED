@@ -244,20 +244,6 @@ String getBootloaderSHA256Hex() {
   return String(hex);
 }
 
-// Verify if uploaded data is a valid ESP32 bootloader
-static bool isValidBootloader(const uint8_t* data, size_t len) {
-  if (len < 32) return false;
-  
-  // Check for ESP32 bootloader magic byte (0xE9)
-  if (data[0] != 0xE9) return false;
-  
-  // Additional validation: check segment count is reasonable
-  uint8_t segmentCount = data[1];
-  if (segmentCount > 16) return false;
-  
-  return true;
-}
-
 // Verify complete buffered bootloader using ESP-IDF validation approach
 // This matches the key validation steps from esp_image_verify() in ESP-IDF
 static bool verifyBootloaderImage(const uint8_t* buffer, size_t len) {
@@ -796,19 +782,7 @@ void initServer()
         return;
       }
       bootloaderBytesBuffered = 0;
-      
-      // Verify bootloader magic on first chunk
-      if (!isValidBootloader(data, len)) {
-        DEBUG_PRINTLN(F("Invalid bootloader file!"));
-        free(bootloaderBuffer);
-        bootloaderBuffer = nullptr;
-        strip.resume();
-        #if WLED_WATCHDOG_TIMEOUT > 0
-        WLED::instance().enableWatchdog();
-        #endif
-        Update.abort();
-        return;
-      }
+      bootloaderErrorMsg = ""; // Clear any previous errors
     }
     
     // Buffer the incoming data
