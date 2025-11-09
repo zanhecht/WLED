@@ -266,6 +266,10 @@ void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, 
 // Verify complete buffered bootloader using ESP-IDF validation approach
 // This matches the key validation steps from esp_image_verify() in ESP-IDF
 bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloaderErrorMsg) {
+  if (!bootloaderErrorMsg) {
+    DEBUG_PRINTLN(F("bootloaderErrorMsg is null"));
+    return false;
+  }
   // ESP32 image header structure (based on esp_image_format.h)
   // Offset 0: magic (0xE9)
   // Offset 1: segment_count
@@ -283,27 +287,27 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
 
   // 1. Validate minimum size for header
   if (len < MIN_IMAGE_HEADER_SIZE) {
-    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Bootloader too small - invalid header";
+    *bootloaderErrorMsg = "Bootloader too small - invalid header";
     return false;
   }
 
   // 2. Magic byte check (matches esp_image_verify step 1)
   if (buffer[0] != 0xE9) {
-    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid bootloader magic byte";
+    *bootloaderErrorMsg = "Invalid bootloader magic byte";
     return false;
   }
 
   // 3. Segment count validation (matches esp_image_verify step 2)
   uint8_t segmentCount = buffer[1];
   if (segmentCount == 0 || segmentCount > 16) {
-    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid segment count: " + String(segmentCount);
+    *bootloaderErrorMsg = "Invalid segment count: " + String(segmentCount);
     return false;
   }
 
   // 4. SPI mode validation (basic sanity check)
   uint8_t spiMode = buffer[2];
   if (spiMode > 3) {  // Valid modes are 0-3 (QIO, QOUT, DIO, DOUT)
-    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid SPI mode: " + String(spiMode);
+    *bootloaderErrorMsg = "Invalid SPI mode: " + String(spiMode);
     return false;
   }
 
@@ -321,43 +325,43 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
 
   #if defined(CONFIG_IDF_TARGET_ESP32)
     if (chipId != 0x0000) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32 (0x0000), got 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32 (0x0000), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32S2)
     if (chipId != 0x0002) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S2 (0x0002), got 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S2 (0x0002), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32C3)
     if (chipId != 0x0005) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C3 (0x0005), got 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C3 (0x0005), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     if (chipId != 0x0009) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S3 (0x0009), got 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S3 (0x0009), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32C2)
     if (chipId != 0x000C) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C2 (0x000C), got 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C2 (0x000C), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32C6)
     if (chipId != 0x000D) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C6 (0x000D), got 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C6 (0x000D), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32H2)
     if (chipId != 0x0010) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-H2 (0x0010), got 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-H2 (0x0010), got 0x" + String(chipId, HEX);
       return false;
     }
   #else
     // Generic validation - chip ID should be valid
     if (chipId > 0x00FF) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid chip ID: 0x" + String(chipId, HEX);
+      *bootloaderErrorMsg = "Invalid chip ID: 0x" + String(chipId, HEX);
       return false;
     }
   #endif
@@ -367,7 +371,7 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
   // ESP32 bootloader entry points are typically in IRAM range (0x40000000 - 0x40400000)
   // or ROM range (0x40000000 and above)
   if (entryAddr < 0x40000000 || entryAddr > 0x50000000) {
-    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid entry address: 0x" + String(entryAddr, HEX);
+    *bootloaderErrorMsg = "Invalid entry address: 0x" + String(entryAddr, HEX);
     return false;
   }
 
@@ -380,7 +384,7 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
 
     // Segment size sanity check (shouldn't be > 32KB for bootloader segments)
     if (segmentSize > 0x8000) {
-      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Segment " + String(i) + " too large: " + String(segmentSize) + " bytes";
+      *bootloaderErrorMsg = "Segment " + String(i) + " too large: " + String(segmentSize) + " bytes";
       return false;
     }
 
@@ -389,7 +393,7 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
 
   // 8. Verify total size is reasonable
   if (len > 0x8000) {  // Bootloader shouldn't exceed 32KB
-    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Bootloader too large: " + String(len) + " bytes";
+    *bootloaderErrorMsg = "Bootloader too large: " + String(len) + " bytes";
     return false;
   }
 
