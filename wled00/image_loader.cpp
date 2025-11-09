@@ -56,7 +56,16 @@ void screenClearCallback(void) {
   activeSeg->fill(0);
 }
 
-void updateScreenCallback(void) {}
+// this callback runs when the decoder has finished painting all pixels
+void updateScreenCallback(void) {
+  // perfect time for adding blur
+  if (activeSeg->intensity > 1) {
+    uint8_t blurAmount = activeSeg->intensity >> 2;
+    if ((blurAmount < 24) && (activeSeg->is2D())) activeSeg->blurRows(activeSeg->intensity >> 1);  // some blur - fast
+    else activeSeg->blur(blurAmount);                                                              // more blur - slower
+  }
+  lastCoordinate = -1; // invalidate last position
+}
 
 // note: GifDecoder drawing is done top right to bottom left, line by line
 
