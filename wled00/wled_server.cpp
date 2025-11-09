@@ -548,11 +548,6 @@ void initServer()
     }
   },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool isFinal){
     if (index == 0) {
-      // Allocate the context structure
-      if (!initBootloaderOTA(request)) {
-        return; // Error will be dealt with after upload in response handler, above
-      }
-
       // Privilege checks
       IPAddress client = request->client()->remoteIP();
       if (((otaSameSubnet && !inSameSubnet(client)) && !strlen(settingsPIN)) || (!otaSameSubnet && !inLocalSubnet(client))) {
@@ -570,6 +565,11 @@ void initServer()
         serveMessage(request, 401, FPSTR(s_accessdenied), FPSTR(s_unlock_ota), 254);
         setBootloaderOTAReplied(request);
         return;
+      }
+
+      // Allocate the context structure
+      if (!initBootloaderOTA(request)) {
+        return; // Error will be dealt with after upload in response handler, above
       }
     }
 
