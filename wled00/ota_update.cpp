@@ -12,6 +12,7 @@
 #ifdef ESP32
 constexpr size_t METADATA_OFFSET = 256;          // ESP32: metadata appears after Espressif metadata
 #define UPDATE_ERROR errorString
+const size_t BOOTLOADER_OFFSET = 0x1000;
 #elif defined(ESP8266)
 constexpr size_t METADATA_OFFSET = 0x1000;     // ESP8266: metadata appears at 4KB offset
 #define UPDATE_ERROR getErrorString
@@ -268,7 +269,6 @@ void calculateBootloaderSHA256() {
   if (bootloaderSHA256Cached) return;
 
   // Bootloader is at fixed offset 0x1000 (4KB) and is typically 32KB
-  const uint32_t bootloaderOffset = 0x1000;
   const uint32_t bootloaderSize = 0x8000; // 32KB, typical bootloader size
 
   mbedtls_sha256_context ctx;
@@ -280,7 +280,7 @@ void calculateBootloaderSHA256() {
 
   for (uint32_t offset = 0; offset < bootloaderSize; offset += chunkSize) {
     size_t readSize = min((size_t)(bootloaderSize - offset), chunkSize);
-    if (esp_flash_read(NULL, buffer, bootloaderOffset + offset, readSize) == ESP_OK) {
+    if (esp_flash_read(NULL, buffer, BOOTLOADER_OFFSET + offset, readSize) == ESP_OK) {
       mbedtls_sha256_update(&ctx, buffer, readSize);
     }
   }
@@ -329,7 +329,6 @@ bool verifyBootloaderImage(const uint8_t* &buffer, size_t &len, String* bootload
   // Offset 23: hash_appended
 
   const size_t MIN_IMAGE_HEADER_SIZE = 24;
-  const size_t BOOTLOADER_OFFSET = 0x1000;
 
   // 1. Validate minimum size for header
   if (len < MIN_IMAGE_HEADER_SIZE) {
