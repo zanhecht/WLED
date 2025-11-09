@@ -4,6 +4,7 @@
 #ifdef ESP32
 #include <esp_app_format.h>
 #include <esp_ota_ops.h>
+#include <esp_flash.h>
 #endif
 
 // Platform-specific metadata locations
@@ -255,3 +256,138 @@ void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, 
     context->uploadComplete = true;
   }
 }
+
+#if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
+// Verify complete buffered bootloader using ESP-IDF validation approach
+// This matches the key validation steps from esp_image_verify() in ESP-IDF
+bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloaderErrorMsg) {
+  // ESP32 image header structure (based on esp_image_format.h)
+  // Offset 0: magic (0xE9)
+  // Offset 1: segment_count
+  // Offset 2: spi_mode
+  // Offset 3: spi_speed (4 bits) + spi_size (4 bits)
+  // Offset 4-7: entry_addr (uint32_t)
+  // Offset 8: wp_pin
+  // Offset 9-11: spi_pin_drv[3]
+  // Offset 12-13: chip_id (uint16_t, little-endian)
+  // Offset 14: min_chip_rev
+  // Offset 15-22: reserved[8]
+  // Offset 23: hash_appended
+
+  const size_t MIN_IMAGE_HEADER_SIZE = 24;
+
+  // 1. Validate minimum size for header
+  if (len < MIN_IMAGE_HEADER_SIZE) {
+    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Bootloader too small - invalid header";
+    return false;
+  }
+
+  // 2. Magic byte check (matches esp_image_verify step 1)
+  if (buffer[0] != 0xE9) {
+    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid bootloader magic byte";
+    return false;
+  }
+
+  // 3. Segment count validation (matches esp_image_verify step 2)
+  uint8_t segmentCount = buffer[1];
+  if (segmentCount == 0 || segmentCount > 16) {
+    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid segment count: " + String(segmentCount);
+    return false;
+  }
+
+  // 4. SPI mode validation (basic sanity check)
+  uint8_t spiMode = buffer[2];
+  if (spiMode > 3) {  // Valid modes are 0-3 (QIO, QOUT, DIO, DOUT)
+    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid SPI mode: " + String(spiMode);
+    return false;
+  }
+
+  // 5. Chip ID validation (matches esp_image_verify step 3)
+  uint16_t chipId = buffer[12] | (buffer[13] << 8);  // Little-endian
+
+  // Known ESP32 chip IDs from ESP-IDF:
+  // 0x0000 = ESP32
+  // 0x0002 = ESP32-S2
+  // 0x0005 = ESP32-C3
+  // 0x0009 = ESP32-S3
+  // 0x000C = ESP32-C2
+  // 0x000D = ESP32-C6
+  // 0x0010 = ESP32-H2
+
+  #if defined(CONFIG_IDF_TARGET_ESP32)
+    if (chipId != 0x0000) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32 (0x0000), got 0x" + String(chipId, HEX);
+      return false;
+    }
+  #elif defined(CONFIG_IDF_TARGET_ESP32S2)
+    if (chipId != 0x0002) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S2 (0x0002), got 0x" + String(chipId, HEX);
+      return false;
+    }
+  #elif defined(CONFIG_IDF_TARGET_ESP32C3)
+    if (chipId != 0x0005) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C3 (0x0005), got 0x" + String(chipId, HEX);
+      return false;
+    }
+  #elif defined(CONFIG_IDF_TARGET_ESP32S3)
+    if (chipId != 0x0009) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S3 (0x0009), got 0x" + String(chipId, HEX);
+      return false;
+    }
+  #elif defined(CONFIG_IDF_TARGET_ESP32C2)
+    if (chipId != 0x000C) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C2 (0x000C), got 0x" + String(chipId, HEX);
+      return false;
+    }
+  #elif defined(CONFIG_IDF_TARGET_ESP32C6)
+    if (chipId != 0x000D) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C6 (0x000D), got 0x" + String(chipId, HEX);
+      return false;
+    }
+  #elif defined(CONFIG_IDF_TARGET_ESP32H2)
+    if (chipId != 0x0010) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-H2 (0x0010), got 0x" + String(chipId, HEX);
+      return false;
+    }
+  #else
+    // Generic validation - chip ID should be valid
+    if (chipId > 0x00FF) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid chip ID: 0x" + String(chipId, HEX);
+      return false;
+    }
+  #endif
+
+  // 6. Entry point validation (should be in valid memory range)
+  uint32_t entryAddr = buffer[4] | (buffer[5] << 8) | (buffer[6] << 16) | (buffer[7] << 24);
+  // ESP32 bootloader entry points are typically in IRAM range (0x40000000 - 0x40400000)
+  // or ROM range (0x40000000 and above)
+  if (entryAddr < 0x40000000 || entryAddr > 0x50000000) {
+    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Invalid entry address: 0x" + String(entryAddr, HEX);
+    return false;
+  }
+
+  // 7. Basic segment structure validation
+  // Each segment has a header: load_addr (4 bytes) + data_len (4 bytes)
+  size_t offset = MIN_IMAGE_HEADER_SIZE;
+  for (uint8_t i = 0; i < segmentCount && offset + 8 <= len; i++) {
+    uint32_t segmentSize = buffer[offset + 4] | (buffer[offset + 5] << 8) |
+                           (buffer[offset + 6] << 16) | (buffer[offset + 7] << 24);
+
+    // Segment size sanity check (shouldn't be > 32KB for bootloader segments)
+    if (segmentSize > 0x8000) {
+      if (bootloaderErrorMsg) *bootloaderErrorMsg = "Segment " + String(i) + " too large: " + String(segmentSize) + " bytes";
+      return false;
+    }
+
+    offset += 8 + segmentSize;  // Skip segment header and data
+  }
+
+  // 8. Verify total size is reasonable
+  if (len > 0x8000) {  // Bootloader shouldn't exceed 32KB
+    if (bootloaderErrorMsg) *bootloaderErrorMsg = "Bootloader too large: " + String(len) + " bytes";
+    return false;
+  }
+
+  return true;
+}
+#endif

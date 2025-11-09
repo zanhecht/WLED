@@ -50,3 +50,47 @@ std::pair<bool, String> getOTAResult(AsyncWebServerRequest *request);
  * @return bool indicating if a reply is necessary; string with error message if the update failed.
  */
 void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, size_t len, bool isFinal);
+
+#if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
+/**
+ * Verify complete buffered bootloader using ESP-IDF validation approach
+ * This matches the key validation steps from esp_image_verify() in ESP-IDF
+ * @param buffer Pointer to bootloader binary data
+ * @param len Length of bootloader data
+ * @param bootloaderErrorMsg Pointer to String to store error message (can be null)
+ * @return true if validation passed, false otherwise
+ */
+bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloaderErrorMsg);
+
+/**
+ * Create a bootloader OTA context object on an AsyncWebServerRequest
+ * @param request Pointer to web request object
+ * @return true if allocation was successful, false if not
+ */
+bool initBootloaderOTA(AsyncWebServerRequest *request);
+
+/**
+ * Indicate to the bootloader OTA subsystem that a reply has already been generated
+ * @param request Pointer to web request object
+ */
+void setBootloaderOTAReplied(AsyncWebServerRequest *request);
+
+/**
+ * Retrieve the bootloader OTA result.
+ * @param request Pointer to web request object
+ * @return bool indicating if a reply is necessary; string with error message if the update failed.
+ */
+std::pair<bool, String> getBootloaderOTAResult(AsyncWebServerRequest *request);
+
+/**
+ * Process a block of bootloader OTA data. This is a passthrough of an ArUploadHandlerFunction.
+ * Requires that initBootloaderOTA be called on the handler object before any work will be done.
+ * @param request Pointer to web request object
+ * @param index Offset in to uploaded file
+ * @param data New data bytes
+ * @param len Length of new data bytes
+ * @param isFinal Indicates that this is the last block
+ */
+void handleBootloaderOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, size_t len, bool isFinal);
+#endif
+
