@@ -244,6 +244,11 @@ String getBootloaderSHA256Hex() {
   return String(hex);
 }
 
+// Invalidate cached bootloader SHA256 (call after bootloader update)
+void invalidateBootloaderSHA256Cache() {
+  bootloaderSHA256Cached = false;
+}
+
 #endif
 
 static void handleUpload(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool isFinal) {
@@ -596,145 +601,47 @@ void initServer()
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
   // ESP32 bootloader update endpoint
   server.on(F("/updatebootloader"), HTTP_POST, [](AsyncWebServerRequest *request){
-    static String bootloaderErrorMsg = "";
-
-    if (!correctPIN) {
-      serveSettings(request, true); // handle PIN page POST request
-      return;
-    }
-    if (otaLock) {
-      serveMessage(request, 401, FPSTR(s_accessdenied), FPSTR(s_unlock_ota), 254);
-      return;
-    }
-    if (Update.hasError() || !bootloaderErrorMsg.isEmpty()) {
-      String errorDetail = bootloaderErrorMsg.isEmpty() ? F("Please check your file and retry!") : bootloaderErrorMsg;
-      serveMessage(request, 500, F("Bootloader update failed!"), errorDetail.c_str(), 254);
-      bootloaderErrorMsg = ""; // Clear error for next attempt
+    if (request->_tempObject) {
+      auto bootloader_result = getBootloaderOTAResult(request);
+      if (bootloader_result.first) {
+        if (bootloader_result.second.length() > 0) {
+          serveMessage(request, 500, F("Bootloader update failed!"), bootloader_result.second, 254);
+        } else {
+          serveMessage(request, 200, F("Bootloader updated successfully!"), FPSTR(s_rebooting), 131);
+        }
+      }
     } else {
-      serveMessage(request, 200, F("Bootloader updated successfully!"), FPSTR(s_rebooting), 131);
-      doReboot = true;
+      // No context structure - something's gone horribly wrong
+      serveMessage(request, 500, F("Bootloader update failed!"), F("Internal server fault"), 254);
     }
   },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool isFinal){
-    static String bootloaderErrorMsg = "";
-    IPAddress client = request->client()->remoteIP();
-    if (((otaSameSubnet && !inSameSubnet(client)) && !strlen(settingsPIN)) || (!otaSameSubnet && !inLocalSubnet(client))) {
-      DEBUG_PRINTLN(F("Attempted bootloader update from different/non-local subnet!"));
-      request->send(401, FPSTR(CONTENT_TYPE_PLAIN), FPSTR(s_accessdenied));
-      return;
-    }
-    if (!correctPIN || otaLock) return;
-
-    static uint8_t* bootloaderBuffer = nullptr;
-    static size_t bootloaderBytesBuffered = 0;
-    const uint32_t bootloaderOffset = 0x1000;
-    // ESP32 bootloader is typically 28-32KB. Use 64KB to be safe while keeping memory reasonable
-    const uint32_t maxBootloaderSize = 0x10000; // 64KB buffer size
-
-    if (!index) {
-      DEBUG_PRINTLN(F("Bootloader Update Start - buffering data"));
-      #if WLED_WATCHDOG_TIMEOUT > 0
-      WLED::instance().disableWatchdog();
-      #endif
-      lastEditTime = millis(); // make sure PIN does not lock during update
-      strip.suspend();
-      strip.resetSegments();
-
-      // Allocate buffer for entire bootloader
-      if (bootloaderBuffer) {
-        free(bootloaderBuffer);
-        bootloaderBuffer = nullptr;
+    if (index == 0) {
+      // Allocate the context structure
+      if (!initBootloaderOTA(request)) {
+        return; // Error will be dealt with after upload in response handler, above
       }
 
-      // Check available heap before attempting allocation
-      size_t freeHeap = getFreeHeapSize();
-      DEBUG_PRINTF_P(PSTR("Free heap before bootloader buffer allocation: %d bytes (need %d bytes)\n"), freeHeap, maxBootloaderSize);
-
-      bootloaderBuffer = (uint8_t*)malloc(maxBootloaderSize);
-      if (!bootloaderBuffer) {
-        size_t freeHeapNow = getFreeHeapSize();
-        DEBUG_PRINTF_P(PSTR("Failed to allocate %d byte bootloader buffer! Free heap: %d bytes\n"), maxBootloaderSize, freeHeapNow);
-        bootloaderErrorMsg = "Out of memory! Free heap: " + String(freeHeapNow) + " bytes, need: " + String(maxBootloaderSize) + " bytes";
-        strip.resume();
-        #if WLED_WATCHDOG_TIMEOUT > 0
-        WLED::instance().enableWatchdog();
-        #endif
-        Update.abort();
+      // Privilege checks
+      IPAddress client = request->client()->remoteIP();
+      if (((otaSameSubnet && !inSameSubnet(client)) && !strlen(settingsPIN)) || (!otaSameSubnet && !inLocalSubnet(client))) {
+        DEBUG_PRINTLN(F("Attempted bootloader update from different/non-local subnet!"));
+        serveMessage(request, 401, FPSTR(s_accessdenied), F("Client is not on local subnet."), 254);
+        setBootloaderOTAReplied(request);
         return;
       }
-      bootloaderBytesBuffered = 0;
-      bootloaderErrorMsg = ""; // Clear any previous errors
-    }
-
-    // Buffer the incoming data
-    if (bootloaderBuffer && bootloaderBytesBuffered + len <= maxBootloaderSize) {
-      memcpy(bootloaderBuffer + bootloaderBytesBuffered, data, len);
-      bootloaderBytesBuffered += len;
-      DEBUG_PRINTF(PSTR("Bootloader buffer progress: %d / %d bytes\n"), bootloaderBytesBuffered, maxBootloaderSize);
-    } else if (!bootloaderBuffer) {
-      DEBUG_PRINTLN(F("Bootloader buffer not allocated!"));
-      bootloaderErrorMsg = "Internal error: Bootloader buffer not allocated";
-      Update.abort();
-    } else {
-      size_t totalSize = bootloaderBytesBuffered + len;
-      DEBUG_PRINTLN(F("Bootloader size exceeds maximum!"));
-      bootloaderErrorMsg = "Bootloader file too large: " + String(totalSize) + " bytes (max: " + String(maxBootloaderSize) + " bytes)";
-      if (bootloaderBuffer) {
-        free(bootloaderBuffer);
-        bootloaderBuffer = nullptr;
+      if (!correctPIN) {
+        serveMessage(request, 401, FPSTR(s_accessdenied), FPSTR(s_unlock_cfg), 254);
+        setBootloaderOTAReplied(request);
+        return;
       }
-      Update.abort();
-    }
-
-    // Only write to flash when upload is complete
-    if (isFinal) {
-      bool success = false;
-      if (!Update.hasError() && bootloaderBuffer && bootloaderBytesBuffered > 0) {
-        DEBUG_PRINTF_P(PSTR("Bootloader buffered (%d bytes) - validating\n"), bootloaderBytesBuffered);
-
-        // Verify the complete bootloader image before flashing
-        if (!verifyBootloaderImage(bootloaderBuffer, bootloaderBytesBuffered, &bootloaderErrorMsg)) {
-          DEBUG_PRINTLN(F("Bootloader validation failed!"));
-          // Error message already set by verifyBootloaderImage
-        } else {
-          // Erase bootloader region
-          DEBUG_PRINTLN(F("Erasing bootloader region..."));
-          esp_err_t err = esp_flash_erase_region(NULL, bootloaderOffset, maxBootloaderSize);
-          if (err != ESP_OK) {
-            DEBUG_PRINTF_P(PSTR("Bootloader erase error: %d\n"), err);
-            bootloaderErrorMsg = "Flash erase failed (error code: " + String(err) + ")";
-          } else {
-            // Write buffered data to flash
-            err = esp_flash_write(NULL, bootloaderBuffer, bootloaderOffset, bootloaderBytesBuffered);
-            if (err != ESP_OK) {
-              DEBUG_PRINTF_P(PSTR("Bootloader flash write error: %d\n"), err);
-              bootloaderErrorMsg = "Flash write failed (error code: " + String(err) + ")";
-            } else {
-              DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written\n"), bootloaderBytesBuffered);
-              bootloaderSHA256Cached = false; // Invalidate cached bootloader hash
-              success = true;
-            }
-          }
-        }
-      } else if (bootloaderBytesBuffered == 0) {
-        bootloaderErrorMsg = "No bootloader data received";
-      }
-
-      // Cleanup
-      if (bootloaderBuffer) {
-        free(bootloaderBuffer);
-        bootloaderBuffer = nullptr;
-      }
-      bootloaderBytesBuffered = 0;
-
-      if (!success) {
-        DEBUG_PRINTLN(F("Bootloader Update Failed"));
-        serveMessage(request, 500, F("Bootloader upgrade failed!"), bootloaderErrorMsg, 254);
-        strip.resume();
-        #if WLED_WATCHDOG_TIMEOUT > 0
-        WLED::instance().enableWatchdog();
-        #endif
+      if (otaLock) {
+        serveMessage(request, 401, FPSTR(s_accessdenied), FPSTR(s_unlock_ota), 254);
+        setBootloaderOTAReplied(request);
+        return;
       }
     }
+
+    handleBootloaderOTAData(request, index, data, len, isFinal);
   });
 #endif
 

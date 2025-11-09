@@ -7,6 +7,11 @@
 #include <esp_flash.h>
 #endif
 
+// Forward declarations
+#if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
+void invalidateBootloaderSHA256Cache();
+#endif
+
 // Platform-specific metadata locations
 #ifdef ESP32
 constexpr size_t METADATA_OFFSET = 256;          // ESP32: metadata appears after Espressif metadata
@@ -389,5 +394,183 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
   }
 
   return true;
+}
+
+// Bootloader OTA context structure
+struct BootloaderUpdateContext {
+  // State flags
+  bool replySent = false;
+  bool uploadComplete = false;
+  String errorMessage;
+
+  // Buffer to hold bootloader data
+  uint8_t* buffer = nullptr;
+  size_t bytesBuffered = 0;
+  const uint32_t bootloaderOffset = 0x1000;
+  const uint32_t maxBootloaderSize = 0x10000; // 64KB buffer size
+};
+
+// Cleanup bootloader OTA context
+static void endBootloaderOTA(AsyncWebServerRequest *request) {
+  BootloaderUpdateContext* context = reinterpret_cast<BootloaderUpdateContext*>(request->_tempObject);
+  request->_tempObject = nullptr;
+
+  DEBUG_PRINTF_P(PSTR("EndBootloaderOTA %x --> %x\n"), (uintptr_t)request, (uintptr_t)context);
+  if (context) {
+    if (context->buffer) {
+      free(context->buffer);
+      context->buffer = nullptr;
+    }
+
+    // If update failed, restore system state
+    if (!context->uploadComplete || !context->errorMessage.isEmpty()) {
+      strip.resume();
+      #if WLED_WATCHDOG_TIMEOUT > 0
+      WLED::instance().enableWatchdog();
+      #endif
+    }
+
+    delete context;
+  }
+}
+
+// Initialize bootloader OTA context
+bool initBootloaderOTA(AsyncWebServerRequest *request) {
+  if (request->_tempObject) {
+    return true; // Already initialized
+  }
+
+  BootloaderUpdateContext* context = new BootloaderUpdateContext();
+  if (!context) {
+    DEBUG_PRINTLN(F("Failed to allocate bootloader OTA context"));
+    return false;
+  }
+
+  request->_tempObject = context;
+  request->onDisconnect([=]() { endBootloaderOTA(request); });  // ensures cleanup on disconnect
+
+  DEBUG_PRINTLN(F("Bootloader Update Start - initializing buffer"));
+  #if WLED_WATCHDOG_TIMEOUT > 0
+  WLED::instance().disableWatchdog();
+  #endif
+  lastEditTime = millis(); // make sure PIN does not lock during update
+  strip.suspend();
+  strip.resetSegments();
+
+  // Check available heap before attempting allocation
+  size_t freeHeap = getFreeHeapSize();
+  DEBUG_PRINTF_P(PSTR("Free heap before bootloader buffer allocation: %d bytes (need %d bytes)\n"), freeHeap, context->maxBootloaderSize);
+
+  context->buffer = (uint8_t*)malloc(context->maxBootloaderSize);
+  if (!context->buffer) {
+    size_t freeHeapNow = getFreeHeapSize();
+    DEBUG_PRINTF_P(PSTR("Failed to allocate %d byte bootloader buffer! Free heap: %d bytes\n"), context->maxBootloaderSize, freeHeapNow);
+    context->errorMessage = "Out of memory! Free heap: " + String(freeHeapNow) + " bytes, need: " + String(context->maxBootloaderSize) + " bytes";
+    strip.resume();
+    #if WLED_WATCHDOG_TIMEOUT > 0
+    WLED::instance().enableWatchdog();
+    #endif
+    return false;
+  }
+
+  context->bytesBuffered = 0;
+  return true;
+}
+
+// Set bootloader OTA replied flag
+void setBootloaderOTAReplied(AsyncWebServerRequest *request) {
+  BootloaderUpdateContext* context = reinterpret_cast<BootloaderUpdateContext*>(request->_tempObject);
+  if (context) {
+    context->replySent = true;
+  }
+}
+
+// Get bootloader OTA result
+std::pair<bool, String> getBootloaderOTAResult(AsyncWebServerRequest *request) {
+  BootloaderUpdateContext* context = reinterpret_cast<BootloaderUpdateContext*>(request->_tempObject);
+
+  if (!context) {
+    return std::make_pair(true, String(F("Internal error: No bootloader OTA context")));
+  }
+
+  bool needsReply = !context->replySent;
+  String errorMsg = context->errorMessage;
+
+  // If upload was successful, return empty string and trigger reboot
+  if (context->uploadComplete && errorMsg.isEmpty()) {
+    doReboot = true;
+    endBootloaderOTA(request);
+    return std::make_pair(needsReply, String());
+  }
+
+  // If there was an error, return it
+  if (!errorMsg.isEmpty()) {
+    endBootloaderOTA(request);
+    return std::make_pair(needsReply, errorMsg);
+  }
+
+  // Should never happen
+  return std::make_pair(true, String(F("Internal software failure")));
+}
+
+// Handle bootloader OTA data
+void handleBootloaderOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, size_t len, bool isFinal) {
+  BootloaderUpdateContext* context = reinterpret_cast<BootloaderUpdateContext*>(request->_tempObject);
+
+  if (!context) {
+    DEBUG_PRINTLN(F("No bootloader OTA context - ignoring data"));
+    return;
+  }
+
+  // Buffer the incoming data
+  if (context->buffer && context->bytesBuffered + len <= context->maxBootloaderSize) {
+    memcpy(context->buffer + context->bytesBuffered, data, len);
+    context->bytesBuffered += len;
+    DEBUG_PRINTF_P(PSTR("Bootloader buffer progress: %d / %d bytes\n"), context->bytesBuffered, context->maxBootloaderSize);
+  } else if (!context->buffer) {
+    DEBUG_PRINTLN(F("Bootloader buffer not allocated!"));
+    context->errorMessage = "Internal error: Bootloader buffer not allocated";
+    return;
+  } else {
+    size_t totalSize = context->bytesBuffered + len;
+    DEBUG_PRINTLN(F("Bootloader size exceeds maximum!"));
+    context->errorMessage = "Bootloader file too large: " + String(totalSize) + " bytes (max: " + String(context->maxBootloaderSize) + " bytes)";
+    return;
+  }
+
+  // Only write to flash when upload is complete
+  if (isFinal) {
+    DEBUG_PRINTLN(F("Bootloader Upload Complete - validating and flashing"));
+
+    if (context->buffer && context->bytesBuffered > 0) {
+      // Verify the complete bootloader image before flashing
+      if (!verifyBootloaderImage(context->buffer, context->bytesBuffered, &context->errorMessage)) {
+        DEBUG_PRINTLN(F("Bootloader validation failed!"));
+        // Error message already set by verifyBootloaderImage
+      } else {
+        // Erase bootloader region
+        DEBUG_PRINTLN(F("Erasing bootloader region..."));
+        esp_err_t err = esp_flash_erase_region(NULL, context->bootloaderOffset, context->maxBootloaderSize);
+        if (err != ESP_OK) {
+          DEBUG_PRINTF_P(PSTR("Bootloader erase error: %d\n"), err);
+          context->errorMessage = "Flash erase failed (error code: " + String(err) + ")";
+        } else {
+          // Write buffered data to flash
+          err = esp_flash_write(NULL, context->buffer, context->bootloaderOffset, context->bytesBuffered);
+          if (err != ESP_OK) {
+            DEBUG_PRINTF_P(PSTR("Bootloader flash write error: %d\n"), err);
+            context->errorMessage = "Flash write failed (error code: " + String(err) + ")";
+          } else {
+            DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written\n"), context->bytesBuffered);
+            // Invalidate cached bootloader hash
+            invalidateBootloaderSHA256Cache();
+            context->uploadComplete = true;
+          }
+        }
+      }
+    } else if (context->bytesBuffered == 0) {
+      context->errorMessage = "No bootloader data received";
+    }
+  }
 }
 #endif
