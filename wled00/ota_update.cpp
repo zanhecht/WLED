@@ -403,32 +403,30 @@ bool verifyBootloaderImage(const uint8_t* &buffer, size_t &len, String* bootload
       *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C3 (0x0005), got 0x" + String(chipId, HEX);
       return false;
     }
+    *bootloaderErrorMsg = "ESP32-C3 update not supported yet";
+    return false;
   #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     if (chipId != 0x0009) {
       *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S3 (0x0009), got 0x" + String(chipId, HEX);
       return false;
     }
-  #elif defined(CONFIG_IDF_TARGET_ESP32C2)
-    if (chipId != 0x000C) {
-      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C2 (0x000C), got 0x" + String(chipId, HEX);
-      return false;
-    }
+    *bootloaderErrorMsg = "ESP32-S3 update not supported yet";
+    return false;
   #elif defined(CONFIG_IDF_TARGET_ESP32C6)
     if (chipId != 0x000D) {
       *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C6 (0x000D), got 0x" + String(chipId, HEX);
       return false;
     }
-  #elif defined(CONFIG_IDF_TARGET_ESP32H2)
-    if (chipId != 0x0010) {
-      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-H2 (0x0010), got 0x" + String(chipId, HEX);
-      return false;
-    }
+    *bootloaderErrorMsg = "ESP32-C6 update not supported yet";
+    return false;
   #else
     // Generic validation - chip ID should be valid
     if (chipId > 0x00FF) {
       *bootloaderErrorMsg = "Invalid chip ID: 0x" + String(chipId, HEX);
       return false;
     }
+   *bootloaderErrorMsg = "Unknown ESP32 target - bootloader update not supported";
+   return false;
   #endif
 
   // 6. Entry point validation (should be in valid memory range)

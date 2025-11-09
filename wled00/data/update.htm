@@ -29,7 +29,7 @@
 					if (data.arch == "esp8266") {
 						toggle('rev');
 					}
-					const isESP32 = data.arch && data.arch.toLowerCase().startsWith('esp32');
+					const isESP32 = data.arch && (data.arch.toLowerCase() === 'esp32' || data.arch.toLowerCase() === 'esp32-s2');
 					if (isESP32) {
 						gId('bootloader-section').style.display = 'block';
 						if (data.bootloaderSHA256) {
