@@ -16,21 +16,10 @@
 #include "html_edit.h"
 
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
-  #include <esp_partition.h>
-  #include <esp_ota_ops.h>
+#include <esp_ota_ops.h>
   #include <esp_flash.h>
   #include <esp_image_format.h>
-  #include <bootloader_common.h>
-  #include <mbedtls/sha256.h>
-#endif
-
-#if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
-  #include <esp_partition.h>
-  #include <esp_ota_ops.h>
-  #include <esp_flash.h>
-  #include <esp_image_format.h>
-  #include <bootloader_common.h>
-  #include <mbedtls/sha256.h>
+#include <mbedtls/sha256.h>
 #endif
 
 // define flash strings once (saves flash memory)
