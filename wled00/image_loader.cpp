@@ -11,7 +11,11 @@
 
 static File file;
 static char lastFilename[34] = "/";
-static GifDecoder<320,320,12,true> decoder;
+#if !defined(BOARD_HAS_PSRAM)
+  static GifDecoder<256,256,11,true> decoder;  // use less RAM on boards without PSRAM - avoids crashes due to out-of-memory
+#else
+  static GifDecoder<320,320,12,true> decoder;
+#endif
 static bool gifDecodeFailed = false;
 static unsigned long lastFrameDisplayTime = 0, currentFrameDelay = 0;
 
@@ -35,8 +39,9 @@ int fileSizeCallback(void) {
   return file.size();
 }
 
-bool openGif(const char *filename) {
+bool openGif(const char *filename) {  // side-effect: updates "file"
   file = WLED_FS.open(filename, "r");
+  DEBUG_PRINTF_P(PSTR("opening GIF file %s\n"), filename);
 
   if (!file) return false;
   return true;
@@ -107,13 +112,18 @@ byte renderImageToSegment(Segment &seg) {
   if (strncmp(lastFilename +1, seg.name, 32) != 0) { // segment name changed, load new image
     strncpy(lastFilename +1, seg.name, 32);
     gifDecodeFailed = false;
-    if (strcmp(lastFilename + strlen(lastFilename) - 4, ".gif") != 0) {
+    size_t fnameLen = strlen(lastFilename);
+    if ((fnameLen < 4) || strcmp(lastFilename + fnameLen - 4, ".gif") != 0) { // empty segment name, name too short, or name not ending in .gif
       gifDecodeFailed = true;
+      DEBUG_PRINTF_P(PSTR("GIF decoder unsupported file: %s\n"), lastFilename);
       return IMAGE_ERROR_UNSUPPORTED_FORMAT;
     }
     if (file) file.close();
-    openGif(lastFilename);
-    if (!file) { gifDecodeFailed = true; return IMAGE_ERROR_FILE_MISSING; }
+    if (!openGif(lastFilename)) {
+      gifDecodeFailed = true; 
+      DEBUG_PRINTF_P(PSTR("GIF file not found: %s\n"), lastFilename);
+      return IMAGE_ERROR_FILE_MISSING; 
+    }
     lastCoordinate = -1;
     decoder.setScreenClearCallback(screenClearCallback);
     decoder.setUpdateScreenCallback(updateScreenCallback);
@@ -123,12 +133,34 @@ byte renderImageToSegment(Segment &seg) {
     decoder.setFileReadCallback(fileReadCallback);
     decoder.setFileReadBlockCallback(fileReadBlockCallback);
     decoder.setFileSizeCallback(fileSizeCallback);
-    decoder.alloc();
+#if __cpp_exceptions // use exception handler if we can (some targets don't support exceptions)
+    try {            
+#endif
+    decoder.alloc(); // this function may throw out-of memory and cause a crash
+#if __cpp_exceptions
+    } catch (...) {  // if we arrive here, the decoder has thrown an OOM exception
+      gifDecodeFailed = true;
+      errorFlag = ERR_NORAM_PX;
+      DEBUG_PRINTLN(F("\nGIF decoder out of memory. Please try a smaller image file.\n"));
+      return IMAGE_ERROR_DECODER_ALLOC;
+    }
+#endif
     DEBUG_PRINTLN(F("Starting decoding"));
-    if(decoder.startDecoding() < 0) { gifDecodeFailed = true; return IMAGE_ERROR_GIF_DECODE; }
+    int decoderError = decoder.startDecoding();
+    if(decoderError < 0) {
+      DEBUG_PRINTF_P(PSTR("GIF Decoding error %d\n"), decoderError);
+      errorFlag = ERR_NORAM_PX;
+      gifDecodeFailed = true;
+      return IMAGE_ERROR_GIF_DECODE;
+    }
     DEBUG_PRINTLN(F("Decoding started"));
     // after startDecoding, we can get GIF size, update static variables and callbacks
     decoder.getSize(&gifWidth, &gifHeight);
+    if (gifWidth == 0 || gifHeight == 0) {  // bad gif size: prevent division by zero
+      gifDecodeFailed = true;
+      DEBUG_PRINTF_P(PSTR("Invalid GIF dimensions: %dx%d\n"), gifWidth, gifHeight);
+      return IMAGE_ERROR_GIF_DECODE;
+    }
     if (activeSeg->is2D()) {
       perPixelX   = (activeSeg->vWidth()  + gifWidth -1) / gifWidth;
       perPixelY   = (activeSeg->vHeight() + gifHeight-1) / gifHeight;
