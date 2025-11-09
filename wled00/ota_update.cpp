@@ -5,11 +5,7 @@
 #include <esp_app_format.h>
 #include <esp_ota_ops.h>
 #include <esp_flash.h>
-#endif
-
-// Forward declarations
-#if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
-void invalidateBootloaderSHA256Cache();
+#include <mbedtls/sha256.h>
 #endif
 
 // Platform-specific metadata locations
@@ -263,6 +259,54 @@ void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, 
 }
 
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
+// Cache for bootloader SHA256 digest
+static uint8_t bootloaderSHA256[32];
+static bool bootloaderSHA256Cached = false;
+
+// Calculate and cache the bootloader SHA256 digest
+void calculateBootloaderSHA256() {
+  if (bootloaderSHA256Cached) return;
+
+  // Bootloader is at fixed offset 0x1000 (4KB) and is typically 32KB
+  const uint32_t bootloaderOffset = 0x1000;
+  const uint32_t bootloaderSize = 0x8000; // 32KB, typical bootloader size
+
+  mbedtls_sha256_context ctx;
+  mbedtls_sha256_init(&ctx);
+  mbedtls_sha256_starts(&ctx, 0); // 0 = SHA256 (not SHA224)
+
+  const size_t chunkSize = 256;
+  uint8_t buffer[chunkSize];
+
+  for (uint32_t offset = 0; offset < bootloaderSize; offset += chunkSize) {
+    size_t readSize = min((size_t)(bootloaderSize - offset), chunkSize);
+    if (esp_flash_read(NULL, buffer, bootloaderOffset + offset, readSize) == ESP_OK) {
+      mbedtls_sha256_update(&ctx, buffer, readSize);
+    }
+  }
+
+  mbedtls_sha256_finish(&ctx, bootloaderSHA256);
+  mbedtls_sha256_free(&ctx);
+  bootloaderSHA256Cached = true;
+}
+
+// Get bootloader SHA256 as hex string
+String getBootloaderSHA256Hex() {
+  calculateBootloaderSHA256();
+
+  char hex[65];
+  for (int i = 0; i < 32; i++) {
+    sprintf(hex + (i * 2), "%02x", bootloaderSHA256[i]);
+  }
+  hex[64] = '\0';
+  return String(hex);
+}
+
+// Invalidate cached bootloader SHA256 (call after bootloader update)
+void invalidateBootloaderSHA256Cache() {
+  bootloaderSHA256Cached = false;
+}
+
 // Verify complete buffered bootloader using ESP-IDF validation approach
 // This matches the key validation steps from esp_image_verify() in ESP-IDF
 // Returns the actual bootloader data pointer and length via the buffer and len parameters
