@@ -246,7 +246,7 @@ String getBootloaderSHA256Hex() {
 
 // Verify complete buffered bootloader using ESP-IDF validation approach
 // This matches the key validation steps from esp_image_verify() in ESP-IDF
-static bool verifyBootloaderImage(const uint8_t* buffer, size_t len) {
+static bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloaderErrorMsg) {
   // ESP32 image header structure (based on esp_image_format.h)
   // Offset 0: magic (0xE9)
   // Offset 1: segment_count
@@ -264,27 +264,27 @@ static bool verifyBootloaderImage(const uint8_t* buffer, size_t len) {
   
   // 1. Validate minimum size for header
   if (len < MIN_IMAGE_HEADER_SIZE) {
-    DEBUG_PRINTLN(F("Bootloader too small - invalid header"));
+    *bootloaderErrorMsg = "Bootloader too small - invalid header";
     return false;
   }
   
   // 2. Magic byte check (matches esp_image_verify step 1)
   if (buffer[0] != 0xE9) {
-    DEBUG_PRINTLN(F("Invalid bootloader magic byte"));
+    *bootloaderErrorMsg = "Invalid bootloader magic byte";
     return false;
   }
   
   // 3. Segment count validation (matches esp_image_verify step 2)
   uint8_t segmentCount = buffer[1];
   if (segmentCount == 0 || segmentCount > 16) {
-    DEBUG_PRINTF_P(PSTR("Invalid segment count: %d\n"), segmentCount);
+    *bootloaderErrorMsg = "Invalid segment count: " + String(segmentCount);
     return false;
   }
   
   // 4. SPI mode validation (basic sanity check)
   uint8_t spiMode = buffer[2];
   if (spiMode > 3) {  // Valid modes are 0-3 (QIO, QOUT, DIO, DOUT)
-    DEBUG_PRINTF_P(PSTR("Invalid SPI mode: %d\n"), spiMode);
+    *bootloaderErrorMsg = "Invalid SPI mode: " + String(spiMode);
     return false;
   }
   
@@ -302,43 +302,43 @@ static bool verifyBootloaderImage(const uint8_t* buffer, size_t len) {
   
   #if defined(CONFIG_IDF_TARGET_ESP32)
     if (chipId != 0x0000) {
-      DEBUG_PRINTF_P(PSTR("Chip ID mismatch - expected ESP32 (0x0000), got 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32 (0x0000), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32S2)
     if (chipId != 0x0002) {
-      DEBUG_PRINTF_P(PSTR("Chip ID mismatch - expected ESP32-S2 (0x0002), got 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S2 (0x0002), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32C3)
     if (chipId != 0x0005) {
-      DEBUG_PRINTF_P(PSTR("Chip ID mismatch - expected ESP32-C3 (0x0005), got 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C3 (0x0005), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     if (chipId != 0x0009) {
-      DEBUG_PRINTF_P(PSTR("Chip ID mismatch - expected ESP32-S3 (0x0009), got 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-S3 (0x0009), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32C2)
     if (chipId != 0x000C) {
-      DEBUG_PRINTF_P(PSTR("Chip ID mismatch - expected ESP32-C2 (0x000C), got 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C2 (0x000C), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32C6)
     if (chipId != 0x000D) {
-      DEBUG_PRINTF_P(PSTR("Chip ID mismatch - expected ESP32-C6 (0x000D), got 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-C6 (0x000D), got 0x" + String(chipId, HEX);
       return false;
     }
   #elif defined(CONFIG_IDF_TARGET_ESP32H2)
     if (chipId != 0x0010) {
-      DEBUG_PRINTF_P(PSTR("Chip ID mismatch - expected ESP32-H2 (0x0010), got 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Chip ID mismatch - expected ESP32-H2 (0x0010), got 0x" + String(chipId, HEX);
       return false;
     }
   #else
     // Generic validation - chip ID should be valid
     if (chipId > 0x00FF) {
-      DEBUG_PRINTF_P(PSTR("Invalid chip ID: 0x%04X\n"), chipId);
+      *bootloaderErrorMsg = "Invalid chip ID: 0x" + String(chipId, HEX);
       return false;
     }
   #endif
@@ -348,7 +348,7 @@ static bool verifyBootloaderImage(const uint8_t* buffer, size_t len) {
   // ESP32 bootloader entry points are typically in IRAM range (0x40000000 - 0x40400000)
   // or ROM range (0x40000000 and above)
   if (entryAddr < 0x40000000 || entryAddr > 0x50000000) {
-    DEBUG_PRINTF_P(PSTR("Invalid entry address: 0x%08X\n"), entryAddr);
+    *bootloaderErrorMsg = "Invalid entry address: 0x" + String(entryAddr, HEX);
     return false;
   }
   
@@ -361,7 +361,7 @@ static bool verifyBootloaderImage(const uint8_t* buffer, size_t len) {
     
     // Segment size sanity check (shouldn't be > 32KB for bootloader segments)
     if (segmentSize > 0x8000) {
-      DEBUG_PRINTF_P(PSTR("Segment %d too large: %d bytes\n"), i, segmentSize);
+      *bootloaderErrorMsg = "Segment " + String(i) + " too large: " + String(segmentSize) + " bytes";
       return false;
     }
     
@@ -370,11 +370,10 @@ static bool verifyBootloaderImage(const uint8_t* buffer, size_t len) {
   
   // 8. Verify total size is reasonable
   if (len > 0x8000) {  // Bootloader shouldn't exceed 32KB
-    DEBUG_PRINTF_P(PSTR("Bootloader too large: %d bytes\n"), len);
+    *bootloaderErrorMsg = "Bootloader too large: " + String(len) + " bytes";
     return false;
   }
   
-  DEBUG_PRINTLN(F("Bootloader validation passed - matches esp_image_verify checks"));
   return true;
 }
 #endif
@@ -729,6 +728,8 @@ void initServer()
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
   // ESP32 bootloader update endpoint
   server.on(F("/updatebootloader"), HTTP_POST, [](AsyncWebServerRequest *request){
+    static String bootloaderErrorMsg = "";
+
     if (!correctPIN) {
       serveSettings(request, true); // handle PIN page POST request
       return;
@@ -737,13 +738,16 @@ void initServer()
       serveMessage(request, 401, FPSTR(s_accessdenied), FPSTR(s_unlock_ota), 254);
       return;
     }
-    if (Update.hasError()) {
-      serveMessage(request, 500, F("Bootloader update failed!"), F("Please check your file and retry!"), 254);
+    if (Update.hasError() || !bootloaderErrorMsg.isEmpty()) {
+      String errorDetail = bootloaderErrorMsg.isEmpty() ? F("Please check your file and retry!") : bootloaderErrorMsg;
+      serveMessage(request, 500, F("Bootloader update failed!"), errorDetail.c_str(), 254);
+      bootloaderErrorMsg = ""; // Clear error for next attempt
     } else {
       serveMessage(request, 200, F("Bootloader updated successfully!"), FPSTR(s_rebooting), 131);
       doReboot = true;
     }
   },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool isFinal){
+    static String bootloaderErrorMsg = "";
     IPAddress client = request->client()->remoteIP();
     if (((otaSameSubnet && !inSameSubnet(client)) && !strlen(settingsPIN)) || (!otaSameSubnet && !inLocalSubnet(client))) {
       DEBUG_PRINTLN(F("Attempted bootloader update from different/non-local subnet!"));
@@ -751,12 +755,13 @@ void initServer()
       return;
     }
     if (!correctPIN || otaLock) return;
-    
+
     static uint8_t* bootloaderBuffer = nullptr;
     static size_t bootloaderBytesBuffered = 0;
     const uint32_t bootloaderOffset = 0x1000;
-    const uint32_t maxBootloaderSize = 0x8000; // 32KB max
-    
+    // ESP32 bootloader is typically 28-32KB. Use 64KB to be safe while keeping memory reasonable
+    const uint32_t maxBootloaderSize = 0x10000; // 64KB buffer size
+
     if (!index) {
       DEBUG_PRINTLN(F("Bootloader Update Start - buffering data"));
       #if WLED_WATCHDOG_TIMEOUT > 0
@@ -765,15 +770,22 @@ void initServer()
       lastEditTime = millis(); // make sure PIN does not lock during update
       strip.suspend();
       strip.resetSegments();
-      
+
       // Allocate buffer for entire bootloader
       if (bootloaderBuffer) {
         free(bootloaderBuffer);
         bootloaderBuffer = nullptr;
       }
+
+      // Check available heap before attempting allocation
+      size_t freeHeap = getFreeHeapSize();
+      DEBUG_PRINTF_P(PSTR("Free heap before bootloader buffer allocation: %d bytes (need %d bytes)\n"), freeHeap, maxBootloaderSize);
+
       bootloaderBuffer = (uint8_t*)malloc(maxBootloaderSize);
       if (!bootloaderBuffer) {
-        DEBUG_PRINTLN(F("Failed to allocate bootloader buffer!"));
+        size_t freeHeapNow = getFreeHeapSize();
+        DEBUG_PRINTF_P(PSTR("Failed to allocate %d byte bootloader buffer! Free heap: %d bytes\n"), maxBootloaderSize, freeHeapNow);
+        bootloaderErrorMsg = "Out of memory! Free heap: " + String(freeHeapNow) + " bytes, need: " + String(maxBootloaderSize) + " bytes";
         strip.resume();
         #if WLED_WATCHDOG_TIMEOUT > 0
         WLED::instance().enableWatchdog();
@@ -784,43 +796,50 @@ void initServer()
       bootloaderBytesBuffered = 0;
       bootloaderErrorMsg = ""; // Clear any previous errors
     }
-    
+
     // Buffer the incoming data
     if (bootloaderBuffer && bootloaderBytesBuffered + len <= maxBootloaderSize) {
       memcpy(bootloaderBuffer + bootloaderBytesBuffered, data, len);
       bootloaderBytesBuffered += len;
+      DEBUG_PRINTF(PSTR("Bootloader buffer progress: %d / %d bytes\n"), bootloaderBytesBuffered, maxBootloaderSize);
     } else if (!bootloaderBuffer) {
       DEBUG_PRINTLN(F("Bootloader buffer not allocated!"));
+      bootloaderErrorMsg = "Internal error: Bootloader buffer not allocated";
       Update.abort();
     } else {
+      size_t totalSize = bootloaderBytesBuffered + len;
       DEBUG_PRINTLN(F("Bootloader size exceeds maximum!"));
+      bootloaderErrorMsg = "Bootloader file too large: " + String(totalSize) + " bytes (max: " + String(maxBootloaderSize) + " bytes)";
       if (bootloaderBuffer) {
         free(bootloaderBuffer);
         bootloaderBuffer = nullptr;
       }
       Update.abort();
     }
-    
+
     // Only write to flash when upload is complete
     if (isFinal) {
       bool success = false;
       if (!Update.hasError() && bootloaderBuffer && bootloaderBytesBuffered > 0) {
         DEBUG_PRINTF_P(PSTR("Bootloader buffered (%d bytes) - validating\n"), bootloaderBytesBuffered);
-        
+
         // Verify the complete bootloader image before flashing
-        if (!verifyBootloaderImage(bootloaderBuffer, bootloaderBytesBuffered)) {
+        if (!verifyBootloaderImage(bootloaderBuffer, bootloaderBytesBuffered, &bootloaderErrorMsg)) {
           DEBUG_PRINTLN(F("Bootloader validation failed!"));
+          // Error message already set by verifyBootloaderImage
         } else {
           // Erase bootloader region
           DEBUG_PRINTLN(F("Erasing bootloader region..."));
           esp_err_t err = esp_flash_erase_region(NULL, bootloaderOffset, maxBootloaderSize);
           if (err != ESP_OK) {
             DEBUG_PRINTF_P(PSTR("Bootloader erase error: %d\n"), err);
+            bootloaderErrorMsg = "Flash erase failed (error code: " + String(err) + ")";
           } else {
             // Write buffered data to flash
             err = esp_flash_write(NULL, bootloaderBuffer, bootloaderOffset, bootloaderBytesBuffered);
             if (err != ESP_OK) {
               DEBUG_PRINTF_P(PSTR("Bootloader flash write error: %d\n"), err);
+              bootloaderErrorMsg = "Flash write failed (error code: " + String(err) + ")";
             } else {
               DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written\n"), bootloaderBytesBuffered);
               bootloaderSHA256Cached = false; // Invalidate cached bootloader hash
@@ -828,17 +847,20 @@ void initServer()
             }
           }
         }
+      } else if (bootloaderBytesBuffered == 0) {
+        bootloaderErrorMsg = "No bootloader data received";
       }
-      
+
       // Cleanup
       if (bootloaderBuffer) {
         free(bootloaderBuffer);
         bootloaderBuffer = nullptr;
       }
       bootloaderBytesBuffered = 0;
-      
+
       if (!success) {
         DEBUG_PRINTLN(F("Bootloader Update Failed"));
+        serveMessage(request, 500, F("Bootloader upgrade failed!"), bootloaderErrorMsg, 254);
         strip.resume();
         #if WLED_WATCHDOG_TIMEOUT > 0
         WLED::instance().enableWatchdog();
