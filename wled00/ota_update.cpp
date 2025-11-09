@@ -260,17 +260,18 @@ void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, 
 }
 
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
-// Cache for bootloader SHA256 digest
-static uint8_t bootloaderSHA256[32];
-static bool bootloaderSHA256Cached = false;
+// Cache for bootloader SHA256 digest as hex string
+static String bootloaderSHA256HexCache = "";
 
-// Calculate and cache the bootloader SHA256 digest
+// Calculate and cache the bootloader SHA256 digest as hex string
 void calculateBootloaderSHA256() {
-  if (bootloaderSHA256Cached) return;
+  if (!bootloaderSHA256HexCache.isEmpty()) return;
 
   // Bootloader is at fixed offset 0x1000 (4KB) and is typically 32KB
   const uint32_t bootloaderSize = 0x8000; // 32KB, typical bootloader size
 
+  // Calculate SHA256
+  uint8_t sha256[32];
   mbedtls_sha256_context ctx;
   mbedtls_sha256_init(&ctx);
   mbedtls_sha256_starts(&ctx, 0); // 0 = SHA256 (not SHA224)
@@ -285,26 +286,27 @@ void calculateBootloaderSHA256() {
     }
   }
 
-  mbedtls_sha256_finish(&ctx, bootloaderSHA256);
+  mbedtls_sha256_finish(&ctx, sha256);
   mbedtls_sha256_free(&ctx);
-  bootloaderSHA256Cached = true;
+
+  // Convert to hex string and cache it
+  char hex[65];
+  for (int i = 0; i < 32; i++) {
+    sprintf(hex + (i * 2), "%02x", sha256[i]);
+  }
+  hex[64] = '\0';
+  bootloaderSHA256HexCache = String(hex);
 }
 
 // Get bootloader SHA256 as hex string
 String getBootloaderSHA256Hex() {
   calculateBootloaderSHA256();
-
-  char hex[65];
-  for (int i = 0; i < 32; i++) {
-    sprintf(hex + (i * 2), "%02x", bootloaderSHA256[i]);
-  }
-  hex[64] = '\0';
-  return String(hex);
+  return bootloaderSHA256HexCache;
 }
 
 // Invalidate cached bootloader SHA256 (call after bootloader update)
 void invalidateBootloaderSHA256Cache() {
-  bootloaderSHA256Cached = false;
+  bootloaderSHA256HexCache = "";
 }
 
 // Verify complete buffered bootloader using ESP-IDF validation approach
