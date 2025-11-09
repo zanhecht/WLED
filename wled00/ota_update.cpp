@@ -265,7 +265,8 @@ void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, 
 #if defined(ARDUINO_ARCH_ESP32) && !defined(WLED_DISABLE_OTA)
 // Verify complete buffered bootloader using ESP-IDF validation approach
 // This matches the key validation steps from esp_image_verify() in ESP-IDF
-bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloaderErrorMsg) {
+// Returns the actual bootloader data pointer and length via the buffer and len parameters
+bool verifyBootloaderImage(const uint8_t* &buffer, size_t &len, String* bootloaderErrorMsg) {
   if (!bootloaderErrorMsg) {
     DEBUG_PRINTLN(F("bootloaderErrorMsg is null"));
     return false;
@@ -284,6 +285,7 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
   // Offset 23: hash_appended
 
   const size_t MIN_IMAGE_HEADER_SIZE = 24;
+  const size_t BOOTLOADER_OFFSET = 0x1000;
 
   // 1. Validate minimum size for header
   if (len < MIN_IMAGE_HEADER_SIZE) {
@@ -291,9 +293,26 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
     return false;
   }
 
+  // Check if the bootloader starts at offset 0x1000 (common in partition table dumps)
+  // This happens when someone uploads a complete flash dump instead of just the bootloader
+  if (len > BOOTLOADER_OFFSET + MIN_IMAGE_HEADER_SIZE &&
+      buffer[BOOTLOADER_OFFSET] == 0xE9 &&
+      buffer[0] != 0xE9) {
+    DEBUG_PRINTF_P(PSTR("Bootloader magic byte detected at offset 0x%04X - adjusting buffer\n"), BOOTLOADER_OFFSET);
+    // Adjust buffer pointer to start at the actual bootloader
+    buffer = buffer + BOOTLOADER_OFFSET;
+    len = len - BOOTLOADER_OFFSET;
+
+    // Re-validate size after adjustment
+    if (len < MIN_IMAGE_HEADER_SIZE) {
+      *bootloaderErrorMsg = "Bootloader at offset 0x1000 too small - invalid header";
+      return false;
+    }
+  }
+
   // 2. Magic byte check (matches esp_image_verify step 1)
   if (buffer[0] != 0xE9) {
-    *bootloaderErrorMsg = "Invalid bootloader magic byte";
+    *bootloaderErrorMsg = "Invalid bootloader magic byte (expected 0xE9, got 0x" + String(buffer[0], HEX) + ")";
     return false;
   }
 
@@ -378,12 +397,15 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
   // 7. Basic segment structure validation
   // Each segment has a header: load_addr (4 bytes) + data_len (4 bytes)
   size_t offset = MIN_IMAGE_HEADER_SIZE;
+  size_t actualBootloaderSize = MIN_IMAGE_HEADER_SIZE;
+
   for (uint8_t i = 0; i < segmentCount && offset + 8 <= len; i++) {
     uint32_t segmentSize = buffer[offset + 4] | (buffer[offset + 5] << 8) |
                            (buffer[offset + 6] << 16) | (buffer[offset + 7] << 24);
 
-    // Segment size sanity check (shouldn't be > 32KB for bootloader segments)
-    if (segmentSize > 0x8000) {
+    // Segment size sanity check
+    // ESP32 classic bootloader segments can be larger, C3 are smaller
+    if (segmentSize > 0x20000) {  // 128KB max per segment (very generous)
       *bootloaderErrorMsg = "Segment " + String(i) + " too large: " + String(segmentSize) + " bytes";
       return false;
     }
@@ -391,11 +413,46 @@ bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloader
     offset += 8 + segmentSize;  // Skip segment header and data
   }
 
-  // 8. Verify total size is reasonable
-  if (len > 0x8000) {  // Bootloader shouldn't exceed 32KB
-    *bootloaderErrorMsg = "Bootloader too large: " + String(len) + " bytes";
+  actualBootloaderSize = offset;
+
+  // 8. Check for appended SHA256 hash (byte 23 in header)
+  // If hash_appended != 0, there's a 32-byte SHA256 hash after the segments
+  uint8_t hashAppended = buffer[23];
+  if (hashAppended != 0) {
+    // SHA256 hash is appended (32 bytes)
+    actualBootloaderSize += 32;
+    DEBUG_PRINTF_P(PSTR("Bootloader has appended SHA256 hash\n"));
+  }
+
+  // 9. The image may also have a 1-byte checksum after segments/hash
+  // Check if there's at least one more byte available
+  if (actualBootloaderSize < len) {
+    // There's likely a checksum byte
+    actualBootloaderSize += 1;
+  }
+
+  // 10. Align to 16 bytes (ESP32 requirement for flash writes)
+  // The bootloader image must be 16-byte aligned
+  if (actualBootloaderSize % 16 != 0) {
+    size_t alignedSize = ((actualBootloaderSize + 15) / 16) * 16;
+    // Make sure we don't exceed available data
+    if (alignedSize <= len) {
+      actualBootloaderSize = alignedSize;
+    }
+  }
+
+  DEBUG_PRINTF_P(PSTR("Bootloader validation: %d segments, actual size %d bytes (buffer size %d bytes, hash_appended=%d)\n"),
+                 segmentCount, actualBootloaderSize, len, hashAppended);
+
+  // 11. Verify we have enough data for all segments + hash + checksum
+  if (offset > len) {
+    *bootloaderErrorMsg = "Bootloader truncated - expected at least " + String(offset) + " bytes, have " + String(len) + " bytes";
     return false;
   }
+
+  // Update len to reflect actual bootloader size (including hash and checksum, with alignment)
+  // This is critical - we must write the complete image including checksums
+  len = actualBootloaderSize;
 
   return true;
 }
@@ -547,25 +604,57 @@ void handleBootloaderOTAData(AsyncWebServerRequest *request, size_t index, uint8
     DEBUG_PRINTLN(F("Bootloader Upload Complete - validating and flashing"));
 
     if (context->buffer && context->bytesBuffered > 0) {
+      // Prepare pointers for verification (may be adjusted if bootloader at offset)
+      const uint8_t* bootloaderData = context->buffer;
+      size_t bootloaderSize = context->bytesBuffered;
+
       // Verify the complete bootloader image before flashing
-      if (!verifyBootloaderImage(context->buffer, context->bytesBuffered, &context->errorMessage)) {
+      // Note: verifyBootloaderImage may adjust bootloaderData pointer and bootloaderSize
+      // for validation purposes only
+      if (!verifyBootloaderImage(bootloaderData, bootloaderSize, &context->errorMessage)) {
         DEBUG_PRINTLN(F("Bootloader validation failed!"));
         // Error message already set by verifyBootloaderImage
       } else {
+        // Calculate offset to write to flash
+        // If bootloaderData was adjusted (partition table detected), we need to skip it in flash too
+        size_t flashOffset = context->bootloaderOffset;
+        const uint8_t* dataToWrite = context->buffer;
+        size_t bytesToWrite = context->bytesBuffered;
+
+        // If validation adjusted the pointer, it means we have a partition table at the start
+        // In this case, we should skip writing the partition table and write bootloader at 0x1000
+        if (bootloaderData != context->buffer) {
+          // bootloaderData was adjusted - skip partition table in our data
+          size_t partitionTableSize = bootloaderData - context->buffer;
+          dataToWrite = bootloaderData;
+          bytesToWrite = bootloaderSize;
+          DEBUG_PRINTF_P(PSTR("Skipping %d bytes of partition table data\n"), partitionTableSize);
+        }
+
+        DEBUG_PRINTF_P(PSTR("Bootloader validation passed - writing %d bytes to flash at 0x%04X\n"),
+                       bytesToWrite, flashOffset);
+
+        // Calculate erase size (must be multiple of 4KB)
+        size_t eraseSize = ((bytesToWrite + 0xFFF) / 0x1000) * 0x1000;
+        if (eraseSize > context->maxBootloaderSize) {
+          eraseSize = context->maxBootloaderSize;
+        }
+
         // Erase bootloader region
-        DEBUG_PRINTLN(F("Erasing bootloader region..."));
-        esp_err_t err = esp_flash_erase_region(NULL, context->bootloaderOffset, context->maxBootloaderSize);
+        DEBUG_PRINTF_P(PSTR("Erasing %d bytes at 0x%04X...\n"), eraseSize, flashOffset);
+        esp_err_t err = esp_flash_erase_region(NULL, flashOffset, eraseSize);
         if (err != ESP_OK) {
           DEBUG_PRINTF_P(PSTR("Bootloader erase error: %d\n"), err);
           context->errorMessage = "Flash erase failed (error code: " + String(err) + ")";
         } else {
-          // Write buffered data to flash
-          err = esp_flash_write(NULL, context->buffer, context->bootloaderOffset, context->bytesBuffered);
+          // Write the validated bootloader data to flash
+          err = esp_flash_write(NULL, dataToWrite, flashOffset, bytesToWrite);
           if (err != ESP_OK) {
             DEBUG_PRINTF_P(PSTR("Bootloader flash write error: %d\n"), err);
             context->errorMessage = "Flash write failed (error code: " + String(err) + ")";
           } else {
-            DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written\n"), context->bytesBuffered);
+            DEBUG_PRINTF_P(PSTR("Bootloader Update Success - %d bytes written to 0x%04X\n"),
+                           bytesToWrite, flashOffset);
             // Invalidate cached bootloader hash
             invalidateBootloaderSHA256Cache();
             context->uploadComplete = true;

@@ -55,12 +55,12 @@ void handleOTAData(AsyncWebServerRequest *request, size_t index, uint8_t *data, 
 /**
  * Verify complete buffered bootloader using ESP-IDF validation approach
  * This matches the key validation steps from esp_image_verify() in ESP-IDF
- * @param buffer Pointer to bootloader binary data
- * @param len Length of bootloader data
- * @param bootloaderErrorMsg Pointer to String to store error message (can be null)
+ * @param buffer Reference to pointer to bootloader binary data (will be adjusted if offset detected)
+ * @param len Reference to length of bootloader data (will be adjusted to actual size)
+ * @param bootloaderErrorMsg Pointer to String to store error message (must not be null)
  * @return true if validation passed, false otherwise
  */
-bool verifyBootloaderImage(const uint8_t* buffer, size_t len, String* bootloaderErrorMsg);
+bool verifyBootloaderImage(const uint8_t* &buffer, size_t &len, String* bootloaderErrorMsg);
 
 /**
  * Create a bootloader OTA context object on an AsyncWebServerRequest
