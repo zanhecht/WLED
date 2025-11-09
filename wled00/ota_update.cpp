@@ -628,6 +628,10 @@ void handleBootloaderOTAData(AsyncWebServerRequest *request, size_t index, uint8
     return;
   }
 
+  if (!context->errorMessage.isEmpty()) {
+    return;
+  }
+
   // Buffer the incoming data
   if (context->buffer && context->bytesBuffered + len <= context->maxBootloaderSize) {
     memcpy(context->buffer + context->bytesBuffered, data, len);
