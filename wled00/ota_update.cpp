@@ -313,6 +313,7 @@ void invalidateBootloaderSHA256Cache() {
 // This matches the key validation steps from esp_image_verify() in ESP-IDF
 // Returns the actual bootloader data pointer and length via the buffer and len parameters
 bool verifyBootloaderImage(const uint8_t* &buffer, size_t &len, String* bootloaderErrorMsg) {
+  size_t availableLen = len;
   if (!bootloaderErrorMsg) {
     DEBUG_PRINTLN(F("bootloaderErrorMsg is null"));
     return false;
@@ -464,16 +465,22 @@ bool verifyBootloaderImage(const uint8_t* &buffer, size_t &len, String* bootload
   // If hash_appended != 0, there's a 32-byte SHA256 hash after the segments
   uint8_t hashAppended = buffer[23];
   if (hashAppended != 0) {
-    // SHA256 hash is appended (32 bytes)
     actualBootloaderSize += 32;
+    if (actualBootloaderSize > availableLen) {
+      *bootloaderErrorMsg = "Bootloader missing SHA256 trailer";
+      return false;
+    }
     DEBUG_PRINTF_P(PSTR("Bootloader has appended SHA256 hash\n"));
   }
 
   // 9. The image may also have a 1-byte checksum after segments/hash
   // Check if there's at least one more byte available
-  if (actualBootloaderSize < len) {
+  if (actualBootloaderSize + 1 <= availableLen) {
     // There's likely a checksum byte
     actualBootloaderSize += 1;
+  } else if (actualBootloaderSize > availableLen) {
+    *bootloaderErrorMsg = "Bootloader truncated before checksum";
+    return false;
   }
 
   // 10. Align to 16 bytes (ESP32 requirement for flash writes)
@@ -490,7 +497,12 @@ bool verifyBootloaderImage(const uint8_t* &buffer, size_t &len, String* bootload
                  segmentCount, actualBootloaderSize, len, hashAppended);
 
   // 11. Verify we have enough data for all segments + hash + checksum
-  if (offset > len) {
+  if (actualBootloaderSize > availableLen) {
+    *bootloaderErrorMsg = "Bootloader truncated - expected at least " + String(actualBootloaderSize) + " bytes, have " + String(availableLen) + " bytes";
+    return false;
+  }
+
+  if (offset > availableLen) {
     *bootloaderErrorMsg = "Bootloader truncated - expected at least " + String(offset) + " bytes, have " + String(len) + " bytes";
     return false;
   }
