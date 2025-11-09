@@ -29,7 +29,7 @@
 					if (data.arch == "esp8266") {
 						toggle('rev');
 					}
-					isESP32 = data.arch && data.arch.startsWith('esp32');
+					const isESP32 = data.arch && data.arch.startsWith('esp32');
 					if (isESP32) {
 						gId('bootloader-section').style.display = 'block';
 						if (data.bootloaderSHA256) {
@@ -45,26 +45,11 @@
 				});
 		}
 	</script>
-	<script>
-		var isESP32 = false;
-		function checkESP32() {
-			fetch(getURL('/json/info')).then(r=>r.json()).then(d=>{
-				isESP32 = d.arch && d.arch.startsWith('esp32');
-				if (isESP32) {
-					gId('bootloader-section').style.display = 'block';
-					if (d.bootloaderSHA256) {
-						gId('bootloader-hash').innerText = 'Current bootloader SHA256: ' + d.bootloaderSHA256;
-					}
-				}
-			}).catch(e=>console.error(e));
-		}
-	</script>
 	<style>
 		@import url("style.css");
 	</style>
 </head>
-
-<body onload="GetV(); checkESP32();">
+<body onload="GetV();">
 	<h2>WLED Software Update</h2>
 	<form method='POST' action='./update' id='upd' enctype='multipart/form-data' onsubmit="toggle('upd')">
 		Installed version: <span class="sip installed-version">Loading...</span><br>
