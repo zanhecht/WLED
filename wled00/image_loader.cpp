@@ -11,11 +11,11 @@
 
 static File file;
 static char lastFilename[34] = "/";
-#if !defined(BOARD_HAS_PSRAM)
-  static GifDecoder<256,256,11,true> decoder;  // use less RAM on boards without PSRAM - avoids crashes due to out-of-memory
-#else
+//#if !defined(BOARD_HAS_PSRAM)  //removed, to avoid compilcations in external tools that assume WLED allows 320 pixels width
+//  static GifDecoder<256,256,11,true> decoder;  // use less RAM on boards without PSRAM - avoids crashes due to out-of-memory
+//#else
   static GifDecoder<320,320,12,true> decoder;
-#endif
+//#endif
 static bool gifDecodeFailed = false;
 static unsigned long lastFrameDisplayTime = 0, currentFrameDelay = 0;
 
