@@ -160,7 +160,7 @@ byte renderImageToSegment(Segment &seg) {
     DEBUG_PRINTLN(F("Starting decoding"));
     int decoderError = decoder.startDecoding();
     if(decoderError < 0) {
-      DEBUG_PRINTF_P(PSTR("GIF Decoding error %d\n"), decoderError);
+      DEBUG_PRINTF_P(PSTR("GIF Decoding error %d in startDecoding().\n"), decoderError);
       errorFlag = ERR_NORAM_PX;
       gifDecodeFailed = true;
       return IMAGE_ERROR_GIF_DECODE;
@@ -203,7 +203,11 @@ byte renderImageToSegment(Segment &seg) {
   if (millis() - lastFrameDisplayTime < wait) return IMAGE_ERROR_WAITING;
 
   int result = decoder.decodeFrame(false);
-  if (result < 0) { gifDecodeFailed = true; return IMAGE_ERROR_FRAME_DECODE; }
+  if (result < 0) { 
+    DEBUG_PRINTF_P(PSTR("GIF Decoding error %d in decodeFrame().\n"), result);
+    gifDecodeFailed = true; 
+    return IMAGE_ERROR_FRAME_DECODE;
+  }
 
   currentFrameDelay = decoder.getFrameDelay_ms();
   unsigned long tooSlowBy = (millis() - lastFrameDisplayTime) - wait; // if last frame was longer than intended, compensate
