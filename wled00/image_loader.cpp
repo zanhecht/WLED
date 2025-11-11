@@ -56,21 +56,18 @@ void screenClearCallback(void) {
 void updateScreenCallback(void) {
   // perfect time for adding blur
   if (activeSeg->intensity > 1) {
-    uint8_t blurAmount = activeSeg->intensity >> 2;
-    if ((blurAmount < 24) && (activeSeg->is2D())) activeSeg->blurRows(activeSeg->intensity >> 1);  // some blur - fast
-    else activeSeg->blur(blurAmount);                                                              // more blur - slower
+    uint8_t blurAmount = activeSeg->intensity;
+    if ((blurAmount < 24) && (activeSeg->is2D())) activeSeg->blurRows(activeSeg->intensity);  // some blur - fast
+    else activeSeg->blur(blurAmount);                                                         // more blur - slower
   }
   lastCoordinate = -1; // invalidate last position
 }
 
 // note: GifDecoder drawing is done top right to bottom left, line by line
 
-// callbacks to draw a pixel at (x,y) without scaling: used if GIF size matches segment size (faster)
-void drawPixelCallbackNoScale1D(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
-  activeSeg->setPixelColor(y * activeSeg->width() + x, red, green, blue);
-}
-void drawPixelCallbackNoScale2D(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
-  activeSeg->setPixelColorXY(x, y, red, green, blue);
+// callbacks to draw a pixel at (x,y) without scaling: used if GIF size matches (virtual)segment size (faster) works for 1D and 2D segments
+void drawPixelCallbackNoScale(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
+  activeSeg->setPixelColor(y * gifWidth + x, red, green, blue);
 }
 
 void drawPixelCallback1D(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8_t blue) {
@@ -128,21 +125,21 @@ byte renderImageToSegment(Segment &seg) {
     }
     if (file) file.close();
     if (!openGif(lastFilename)) {
-      gifDecodeFailed = true; 
+      gifDecodeFailed = true;
       DEBUG_PRINTF_P(PSTR("GIF file not found: %s\n"), lastFilename);
-      return IMAGE_ERROR_FILE_MISSING; 
+      return IMAGE_ERROR_FILE_MISSING;
     }
     lastCoordinate = -1;
     decoder.setScreenClearCallback(screenClearCallback);
     decoder.setUpdateScreenCallback(updateScreenCallback);
-    decoder.setDrawPixelCallback(drawPixelCallbackNoScale1D); //  default: use "fast path" 1D callback without scaling
+    decoder.setDrawPixelCallback(drawPixelCallbackNoScale); //  default: use "fast path" callback without scaling
     decoder.setFileSeekCallback(fileSeekCallback);
     decoder.setFilePositionCallback(filePositionCallback);
     decoder.setFileReadCallback(fileReadCallback);
     decoder.setFileReadBlockCallback(fileReadBlockCallback);
     decoder.setFileSizeCallback(fileSizeCallback);
 #if __cpp_exceptions // use exception handler if we can (some targets don't support exceptions)
-    try {            
+    try {
 #endif
     decoder.alloc(); // this function may throw out-of memory and cause a crash
 #if __cpp_exceptions
@@ -174,15 +171,15 @@ byte renderImageToSegment(Segment &seg) {
       perPixelY   = (activeSeg->vHeight() + gifHeight-1) / gifHeight;
       if (activeSeg->vWidth() != gifWidth || activeSeg->vHeight() != gifHeight) {
         decoder.setDrawPixelCallback(drawPixelCallback2D);        // use 2D callback with scaling
-      } else {
-        decoder.setDrawPixelCallback(drawPixelCallbackNoScale2D); // use "fast path" 2D callback without scaling
+        //DEBUG_PRINTLN(F("scaling image"));
       }
     } else {
       int totalImgPix = (int)gifWidth * gifHeight;
-      if (totalImgPix - activeSeg->vLength() == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first (gifs constructed from 1D input padds last pixel if length is odd)
+      if (totalImgPix - activeSeg->vLength() == 1) totalImgPix--; // handle off-by-one: skip last pixel instead of first (gifs constructed from 1D input pad last pixel if length is odd)
       perPixelX   = (activeSeg->vLength() + totalImgPix-1) / totalImgPix;
       if (totalImgPix != activeSeg->vLength()) {
         decoder.setDrawPixelCallback(drawPixelCallback1D);        // use 1D callback with scaling
+        //DEBUG_PRINTLN(F("scaling image"));
       }
     }
   }
@@ -199,9 +196,9 @@ byte renderImageToSegment(Segment &seg) {
   if (millis() - lastFrameDisplayTime < wait) return IMAGE_ERROR_WAITING;
 
   int result = decoder.decodeFrame(false);
-  if (result < 0) { 
+  if (result < 0) {
     DEBUG_PRINTF_P(PSTR("GIF Decoding error %d in decodeFrame().\n"), result);
-    gifDecodeFailed = true; 
+    gifDecodeFailed = true;
     return IMAGE_ERROR_FRAME_DECODE;
   }
 
