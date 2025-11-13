@@ -85,8 +85,8 @@ void drawPixelCallback2D(int16_t x, int16_t y, uint8_t red, uint8_t green, uint8
   // simple nearest-neighbor scaling
   int outY = (int)y * activeSeg->vHeight() / gifHeight;
   int outX = (int)x * activeSeg->vWidth()  / gifWidth;
-  if (outX + outY == lastCoordinate) return; // skip setting same coordinate again
-  lastCoordinate = outX + outY; // since input is a "scanline" this is sufficient to identify a "unique" coordinate
+  if (((outY << 16) | outX) == lastCoordinate) return; // skip setting same coordinate again
+  lastCoordinate = (outY << 16) | outX; // since input is a "scanline" this is sufficient to identify a "unique" coordinate
   // set multiple pixels if upscaling
   for (int i = 0; i < perPixelX; i++) {
     for (int j = 0; j < perPixelY; j++) {
