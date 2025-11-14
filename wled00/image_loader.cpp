@@ -10,7 +10,7 @@
  */
 
 static File file;
-static char lastFilename[34] = "/";
+static char lastFilename[WLED_MAX_SEGNAME_LEN+2] = "/"; // enough space for "/" + seg.name + '\0'
 static GifDecoder<320,320,12,true> decoder;  // this creates the basic object; parameter lzwMaxBits is not used; decoder.alloc() always allocated "everything else" = 24Kb 
 static bool gifDecodeFailed = false;
 static unsigned long lastFrameDisplayTime = 0, currentFrameDelay = 0;
@@ -115,10 +115,10 @@ byte renderImageToSegment(Segment &seg) {
   if (activeSeg && activeSeg != &seg) return IMAGE_ERROR_SEG_LIMIT; // only one segment at a time
   activeSeg = &seg;
 
-  if (strncmp(lastFilename +1, seg.name, 32) != 0) { // segment name changed, load new image
+  if (strncmp(lastFilename +1, seg.name, WLED_MAX_SEGNAME_LEN) != 0) { // segment name changed, load new image
     strcpy(lastFilename, "/");  // filename always starts with '/'
-    strncpy(lastFilename +1, seg.name, 32);
-    lastFilename[33] ='\0';     // ensure proper string termination when segment name was truncated
+    strncpy(lastFilename +1, seg.name, WLED_MAX_SEGNAME_LEN);
+    lastFilename[WLED_MAX_SEGNAME_LEN+1] ='\0';     // ensure proper string termination when segment name was truncated
     gifDecodeFailed = false;
     size_t fnameLen = strlen(lastFilename);
     if ((fnameLen < 4) || strcmp(lastFilename + fnameLen - 4, ".gif") != 0) { // empty segment name, name too short, or name not ending in .gif
@@ -222,7 +222,7 @@ void endImagePlayback(Segment *seg) {
   decoder.dealloc();
   gifDecodeFailed = false;
   activeSeg = nullptr;
-  lastFilename[1] = '\0';
+  strcpy(lastFilename, "/");  // reset filename
   DEBUG_PRINTLN(F("Image playback ended"));
 }
 
