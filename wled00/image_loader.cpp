@@ -149,6 +149,8 @@ byte renderImageToSegment(Segment &seg) {
       errorFlag = ERR_NORAM_PX;
       DEBUG_PRINTLN(F("\nGIF decoder out of memory. Please try a smaller image file.\n"));
       return IMAGE_ERROR_DECODER_ALLOC;
+      // decoder cleanup (hi @coderabbitai): No additonal cleanup necessary - decoder.alloc() ultimately uses "new AnimatedGIF". 
+      // If new throws, no pointer is assigned, previous decoder state (if any) has already been deleted inside alloc(), so calling decoder.dealloc() here is unnecessary.
     }
 #endif
     DEBUG_PRINTLN(F("Starting decoding"));
