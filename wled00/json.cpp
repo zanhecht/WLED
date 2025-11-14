@@ -285,6 +285,53 @@ static bool deserializeSegment(JsonObject elem, byte it, byte presetId = 0)
     if (fx != seg.mode) seg.setMode(fx, elem[F("fxdef")]); // use transition (WARNING: may change map1D2D causing geometry change)
   }
 
+  if (presetId != 0) {
+    struct NumField { const char* key; uint8_t Segment::* member; int max; };
+    static constexpr NumField numFields[] = {
+      {"sx",  &Segment::speed,     255},
+      {"ix",  &Segment::intensity, 255},
+      {"c1",  &Segment::custom1,   255},
+      {"c2",  &Segment::custom2,   255},
+      {"c3",  &Segment::custom3,    31},
+      {"m12", &Segment::map1D2D,     7},
+      {"si",  &Segment::soundSim,    3}
+    };
+  
+    for (size_t i = 0; i < sizeof(numFields)/sizeof(numFields[0]); ++i) {
+      const char* k = numFields[i].key;
+      if (elem.containsKey(k)) continue;
+      int16_t d = extractModeDefaults(seg.mode, k);
+      if (d < 0) continue;
+      seg.*(numFields[i].member) = (uint8_t)constrain(d, 0, numFields[i].max);
+    }
+  
+    struct BoolField { const char* key; bool Segment::* member; };
+    static constexpr BoolField boolFields[] = {
+      {"o1",  &Segment::check1},
+      {"o2",  &Segment::check2},
+      {"o3",  &Segment::check3},
+      {"rev", &Segment::reverse},
+      {"mi",  &Segment::mirror},
+    #ifndef WLED_DISABLE_2D
+      {"rY",  &Segment::reverse_y},
+      {"mY",  &Segment::mirror_y},
+    #endif
+    };
+  
+    for (size_t i = 0; i < sizeof(boolFields)/sizeof(boolFields[0]); ++i) {
+      const char* k = boolFields[i].key;
+      if (elem.containsKey(k)) continue;
+      int16_t d = extractModeDefaults(seg.mode, k);
+      if (d < 0) continue;
+      seg.*(boolFields[i].member) = (bool)d;
+    }
+    
+    if (!elem.containsKey("pal")) {
+      int16_t d = extractModeDefaults(seg.mode, "pal");
+      if (d > 0 && (seg.getLightCapabilities() & 1)) seg.setPalette((uint8_t)d);
+    }
+  }
+
   getVal(elem["sx"], seg.speed);
   getVal(elem["ix"], seg.intensity);
 
