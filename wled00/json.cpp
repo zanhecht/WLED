@@ -286,8 +286,8 @@ static bool deserializeSegment(JsonObject elem, byte it, byte presetId = 0)
   }
 
   if (presetId != 0) {
-    struct NumField { const char* key; uint8_t Segment::* member; int max; };
-    static constexpr NumField numFields[] = {
+    struct NumField { const char* key; uint8_t Segment::* member; uint8_t max; };
+    static const NumField numFields[] = {
       {"sx",  &Segment::speed,     255},
       {"ix",  &Segment::intensity, 255},
       {"c1",  &Segment::custom1,   255},
@@ -297,7 +297,7 @@ static bool deserializeSegment(JsonObject elem, byte it, byte presetId = 0)
       {"si",  &Segment::soundSim,    3}
     };
   
-    for (size_t i = 0; i < sizeof(numFields)/sizeof(numFields[0]); ++i) {
+    for (unsigned i = 0; i < sizeof(numFields)/sizeof(numFields[0]); i++) {
       const char* k = numFields[i].key;
       if (elem.containsKey(k)) continue;
       int16_t d = extractModeDefaults(seg.mode, k);
@@ -305,27 +305,27 @@ static bool deserializeSegment(JsonObject elem, byte it, byte presetId = 0)
       seg.*(numFields[i].member) = (uint8_t)constrain(d, 0, numFields[i].max);
     }
   
-    struct BoolField { const char* key; bool Segment::* member; };
-    static constexpr BoolField boolFields[] = {
-      {"o1",  &Segment::check1},
-      {"o2",  &Segment::check2},
-      {"o3",  &Segment::check3},
-      {"rev", &Segment::reverse},
-      {"mi",  &Segment::mirror},
-    #ifndef WLED_DISABLE_2D
-      {"rY",  &Segment::reverse_y},
-      {"mY",  &Segment::mirror_y},
-    #endif
+    struct BoolField { const char* key; void (*setter)(Segment&, bool); };
+    static const BoolField boolFields[] = {
+      {"o1",  +[](Segment& s, bool v){ s.check1    = v; }},
+      {"o2",  +[](Segment& s, bool v){ s.check2    = v; }},
+      {"o3",  +[](Segment& s, bool v){ s.check3    = v; }},
+      {"rev", +[](Segment& s, bool v){ s.reverse   = v; }},
+      {"mi",  +[](Segment& s, bool v){ s.mirror    = v; }},
+  #ifndef WLED_DISABLE_2D
+      {"rY",  +[](Segment& s, bool v){ s.reverse_y = v; }},
+      {"mY",  +[](Segment& s, bool v){ s.mirror_y  = v; }},
+  #endif
     };
   
-    for (size_t i = 0; i < sizeof(boolFields)/sizeof(boolFields[0]); ++i) {
+    for (unsigned i = 0; i < sizeof(boolFields) / sizeof(boolFields[0]); i++) {
       const char* k = boolFields[i].key;
       if (elem.containsKey(k)) continue;
       int16_t d = extractModeDefaults(seg.mode, k);
       if (d < 0) continue;
-      seg.*(boolFields[i].member) = (bool)d;
+      boolFields[i].setter(seg, (bool)d);
     }
-    
+  
     if (!elem.containsKey("pal")) {
       int16_t d = extractModeDefaults(seg.mode, "pal");
       if (d > 0 && (seg.getLightCapabilities() & 1)) seg.setPalette((uint8_t)d);
