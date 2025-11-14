@@ -116,7 +116,9 @@ byte renderImageToSegment(Segment &seg) {
   activeSeg = &seg;
 
   if (strncmp(lastFilename +1, seg.name, 32) != 0) { // segment name changed, load new image
+    strcpy(lastFilename, "/");  // filename always starts with '/'
     strncpy(lastFilename +1, seg.name, 32);
+    lastFilename[33] ='\0';     // ensure proper string termination when segment name was truncated
     gifDecodeFailed = false;
     size_t fnameLen = strlen(lastFilename);
     if ((fnameLen < 4) || strcmp(lastFilename + fnameLen - 4, ".gif") != 0) { // empty segment name, name too short, or name not ending in .gif
